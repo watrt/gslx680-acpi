@@ -6,7 +6,7 @@ ARCH := $(shell uname -m | sed -e s/i.86/i386/)
 KVER := $(shell uname -r)
 KSRC := /lib/modules/$(KVER)/build
 
-obj-m += gslx680_ts.o
+obj-m += gslx680_ts_acpi.o
 
 .PHONY: all modules clean
 
