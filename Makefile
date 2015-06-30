@@ -1,10 +1,19 @@
-CROSS_COMPILE=arm-linux-gnueabihf-
-KDIR=../build/a13_defconfig-linux
+MODULE_NAME = gslx680_ts_acpi
+
+#CROSS_COMPILE ?= arm-linux-gnueabihf-
+#ARCH ?= arm
+ARCH := $(shell uname -m | sed -e s/i.86/i386/)
+KVER := $(shell uname -r)
+KSRC := /lib/modules/$(KVER)/build
 
 obj-m += gslx680_ts.o
 
-all:
-	make -C ${KDIR} ARCH=arm CROSS_COMPILE=${CROSS_COMPILE} M=$(PWD) modules
+.PHONY: all modules clean
+
+all: modules
+
+modules:
+	make -C $(KSRC) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) M=$(PWD) modules
 
 clean:
-	make -C ${KDIR} ARCH=arm CROSS_COMPILE=${CROSS_COMPILE} M=$(PWD) clean
+	make -C $(KSRC) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) M=$(PWD) clean
