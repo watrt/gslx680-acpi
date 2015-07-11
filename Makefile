@@ -5,6 +5,7 @@ MODULE_NAME = gslx680_ts_acpi
 ARCH := $(shell uname -m | sed -e s/i.86/i386/)
 KVER := $(shell uname -r)
 KSRC := /lib/modules/$(KVER)/build
+PWD = $(shell pwd)
 
 obj-m += gslx680_ts_acpi.o
 
