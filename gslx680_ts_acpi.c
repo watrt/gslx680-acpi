@@ -231,6 +231,7 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts)
 	u8 page[GSL_PAGE_SIZE];
 	size_t buffered = 0;
 	u8 offset = 0;
+	u32 address;
 	
 	memset(page, 0, sizeof(page));
 	
@@ -246,9 +247,10 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts)
 	for (index = 0; rc >= 0 && index + sizeof(chunk) <= fw->size; index += sizeof(chunk)) {
 		/* Copy the next chunk of data from the firmware image */
 		memcpy(&chunk, &fw->data[index], sizeof(chunk));
+		address = le32_to_cpu(chunk.address);
 		
 		/* Check if the address offset is the page register */
-		if (chunk.address == GSL_PAGE_REG) {
+		if (address == GSL_PAGE_REG) {
 			/* Copy and transfer the data, this sets the current memory page */
 			memcpy(page, &chunk.data, sizeof(chunk.data));
 			rc = gsl_ts_write(client, GSL_PAGE_REG, page, sizeof(chunk.data));
@@ -262,16 +264,16 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts)
 			offset = 0;
 		} else {
 			/* Check if the address is valid */
-			if (chunk.address <= GSL_PAGE_SIZE - sizeof(chunk.data)) {
+			if (address <= GSL_PAGE_SIZE - sizeof(chunk.data)) {
 				/* Verify that the data is consecutive.
 				 * It may start at an offset > 0, but holes are not allowed.
 				 */
 				if (buffered == 0) {
 					/* The first chunk may have any offset inside the page boundaries */
-					offset = (u8) chunk.address;
+					offset = (u8) address;
 				} else {
 					/* Check for data consecutivity */
-					if (offset + buffered != chunk.address) {
+					if (offset + buffered != address) {
 						dev_err(&client->dev, "%s: invalid firmware data, hole detected at offset 0x%zx\n", __func__, index);
 						rc = -EINVAL;
 					}
@@ -302,7 +304,7 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts)
 					}
 				}
 			} else {
-				dev_err(&client->dev, "%s: invalid firmware data, page address 0x%x out of bounds found at offset 0x%zx\n", __func__, chunk.address, index);
+				dev_err(&client->dev, "%s: invalid firmware data, page address 0x%x out of bounds found at offset 0x%zx\n", __func__, address, index);
 				rc = -EINVAL;
 			}
 		}
