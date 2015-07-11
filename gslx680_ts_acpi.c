@@ -59,20 +59,6 @@
 
 #define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
 
-#define PRESS_MAX 255
-#define MAX_FINGERS 10
-#define MAX_CONTACTS 10
-
-#define TOUCH_INDEX 0
-#define X_INDEX 6
-#define Y_INDEX 4
-#define Z_INDEX 5
-#define ID_INDEX 7
-#define UPDATE_DATA 0x4
-#define TOUCH_BYTES 4
-#define TOUCH_META_BYTES 4
-#define FINGER_SIZE 70
-
 /* Driver state */
 enum gsl_ts_state {
 	GSL_TS_INIT,
@@ -96,18 +82,10 @@ struct gsl_ts_data {
 	unsigned int x_max;
 	unsigned int y_max;
 	unsigned int multi_touches;
+	/* unused */
 	bool x_reversed;
 	bool y_reversed;
 	bool xy_swapped;
-	
-	u32 id_sign[MAX_CONTACTS + 1];
-	u8 id_state_flag[MAX_CONTACTS + 1];
-	u8 id_state_old_flag[MAX_CONTACTS + 1];
-	u16 x_old[MAX_CONTACTS + 1];
-	u16 y_old[MAX_CONTACTS + 1];
-	u16 x_new;
-	u16 y_new;
-	u8 prev_touches;
 };
 
 /* Firmware image data chunk */
@@ -153,18 +131,9 @@ static int gsl_ts_init(struct gsl_ts_data *ts)
 	/* TODO: Find out what kind of device we have and load the appropriate firmware */
 	ts->firmware_name = FIRMWARE_1680;
 	
-	memset(ts->id_sign, 0, sizeof(ts->id_sign));
-	memset(ts->id_state_flag, 0, sizeof(ts->id_state_flag));
-	memset(ts->id_state_old_flag, 0, sizeof(ts->id_state_old_flag));
-	memset(ts->x_old, 0, sizeof(ts->x_old));
-	memset(ts->y_old, 0, sizeof(ts->y_old));
-	ts->x_new = 0;
-	ts->y_new = 0;
 	ts->x_reversed = false;
 	ts->y_reversed = false;
 	ts->xy_swapped = false;
-
-	ts->prev_touches = 0;
 
 	return 0;
 }
@@ -372,138 +341,6 @@ static int gsl_ts_init_chip(struct gsl_ts_data *ts)
 	return 0;
 }
 
-static void gsl_ts_record_point(struct gsl_ts_data *ts, u16 x, u16 y, u8 id)
-{
-	u16 x_err = 0;
-	u16 y_err = 0;
-
-	dev_warn(&ts->client->dev, "%s: recording relative point coordinates\n", __func__);
-	
-	ts->id_sign[id] = ts->id_sign[id] + 1;
-	
-	if (ts->id_sign[id] == 1) {
-		ts->x_old[id] = x;
-		ts->y_old[id] = y;
-	}
-	
-	x = (ts->x_old[id] + x) / 2;
-	y = (ts->y_old[id] + y) / 2;
-	
-	if (x > ts->x_old[id]) {
-		x_err = x - ts->x_old[id];
-	} else {
-		x_err = ts->x_old[id] - x;
-	}
-	
-	if (y > ts->y_old[id]) {
-		y_err = y - ts->y_old[id];
-	} else {
-		y_err = ts->y_old[id] - y;
-	}
-	
-	if ((x_err > 6 && y_err > 2) || (x_err > 2 && y_err > 6)) {
-		ts->x_new = x;
-		ts->x_old[id] = x;
-		ts->y_new = y;
-		ts->y_old[id] = y;
-	} else {
-		if (x_err > 6) {
-			ts->x_new = x;
-			ts->x_old[id] = x;
-		} else {
-			ts->x_new = ts->x_old[id];
-		}
-		if (y_err> 6) {
-			ts->y_new = y;
-			ts->y_old[id] = y;
-		} else {
-			ts->y_new = ts->y_old[id];
-		}
-	}
-	
-	if (ts->id_sign[id] == 1) {
-		ts->x_new = ts->x_old[id];
-		ts->y_new = ts->y_old[id];
-	}
-}
-
-static void gsl_ts_report_data(struct gsl_ts_data *ts, u16 x, u16 y, u8 pressure, u8 id)
-{
-	dev_warn(&ts->client->dev, "%s: reporting input data\n", __func__);
-
-	if (ts->xy_swapped) {
-		swap(x, y);
-	}
-	
-	/* This check had x and y reversed in the original code. Why? */
-	if (x >= ts->x_max || y >= ts->y_max) {
-		dev_err(&ts->client->dev, "%s: coordinates out of bounds, x = %u (max %u), y = %u (max %u)\n", __func__, x, ts->x_max, y, ts->y_max);
-		return;
-	}
-	
-	if (ts->x_reversed) {
-		x = ts->x_max - x;
-	}
-	
-	if (ts->y_reversed) {
-		y = ts->y_max - y;
-	}
-	
-	input_mt_slot(ts->input, id);
-	input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, 1);
-	input_report_abs(ts->input, ABS_MT_TOUCH_MAJOR, pressure);
-	input_report_abs(ts->input, ABS_MT_POSITION_X, x);
-	input_report_abs(ts->input, ABS_MT_POSITION_Y, y);
-	input_report_abs(ts->input, ABS_MT_WIDTH_MAJOR, 1);
-}
-
-static inline u16 join_bytes(u8 a, u8 b)
-{
-	return (a << 8) | b;
-}
-
-static void gsl_ts_process_data(struct gsl_ts_data *ts, u8 *event)
-{
-	u8 id, touches;
-	u16 x, y;
-	int i;
-	
-	touches = event[TOUCH_INDEX];
-	for (i = 1; i <= MAX_CONTACTS; i++) {
-		if (touches == 0) {
-			ts->id_sign[i] = 0;
-		}
-		ts->id_state_flag[i] = 0;
-	}
-	
-	for (i = 0; i < (touches > MAX_FINGERS ? MAX_FINGERS : touches); i++) {
-		x = join_bytes((event[X_INDEX  + 4 * i + 1] & 0xf), event[X_INDEX + 4 * i]);
-		y = join_bytes(event[Y_INDEX + 4 * i + 1], event[Y_INDEX + 4 * i ]);
-		id = event[ID_INDEX + 4 * i] >> 4;
-		
-		if (1 <= id && id <= MAX_CONTACTS) {
-			gsl_ts_record_point(ts, x, y, id);
-			gsl_ts_report_data(ts, ts->x_new, ts->y_new, 10, id);
-			ts->id_state_flag[id] = 1;
-		}
-	}
-	for (i = 1; i <= MAX_CONTACTS; i++) {
-		if ((0 != ts->id_state_old_flag[i]) && (0 == ts->id_state_flag[i])) {
-			input_mt_slot(ts->input, i);
-			input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, false);
-			ts->id_sign[i] = 0;
-		}
-		ts->id_state_old_flag[i] = ts->id_state_flag[i];
-	}
-	
-	if (touches || touches != ts->prev_touches) {
-		input_mt_report_pointer_emulation(ts->input, true);
-		input_sync(ts->input);
-	}
-	
-	ts->prev_touches = touches;
-}
-
 static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 {
 	struct input_dev *input = ts->input;
@@ -512,9 +349,6 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	struct gsl_ts_packet_touch touch;
 	u8 i;
 	u16 tseq, x, y, id;
-	
-	dev_info(dev, "%s: touch event\n", __func__);
-	print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET, 16, 1, buf, GSL_PACKET_SIZE, true);
 	
 	memcpy(&header, buf, sizeof(header));
 	tseq = le16_to_cpu(header.time_stamp);
@@ -543,13 +377,6 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		input_event(input, EV_ABS, ABS_MT_POSITION_X, x > ts->x_max ? ts->x_max : x);
 		input_event(input, EV_ABS, ABS_MT_POSITION_Y, y > ts->y_max ? ts->y_max : y);
 		input_mt_sync_frame(input);
-
-		/*if (id >= 1 && id < GSL_MAX_CONTACTS) {
-			input_mt_slot(input, id - 1);
-			input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
-			input_event(input, EV_ABS, ABS_MT_POSITION_X, x > ts->x_max ? ts->x_max : x);
-			input_event(input, EV_ABS, ABS_MT_POSITION_Y, y > ts->y_max ? ts->y_max : y);
-		}*/
 	}
 	
 	/* Insert a single sync report for zero-contact events */
@@ -691,29 +518,11 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts->input->name = "Silead GSLx680 Touchscreen";
 	ts->input->id.bustype = BUS_I2C;
 
-	/*__set_bit(BTN_TOUCH, ts->input->keybit);*/
 	__set_bit(EV_ABS, ts->input->evbit);
-	/*__set_bit(EV_KEY, ts->input->evbit);*/
-
-	/* Single touch input params setup */
-	/*input_set_abs_params(ts->input, ABS_X, 0, ts->x_max, 0, 0);
-	input_set_abs_params(ts->input, ABS_Y, 0, ts->y_max, 0, 0);
-	input_set_abs_params(ts->input, ABS_PRESSURE, 0, 255, 0, 0);
-	input_abs_set_res(ts->input, ABS_X, ts->x_res);
-	input_abs_set_res(ts->input, ABS_Y, ts->y_res);*/
 
 	/* Multitouch input params setup */
-	/*error = input_mt_init_slots(ts->input, ts->multi_touches, INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
-	if (error) {
-		dev_err(&client->dev, "%s: failed to initialize MT slots: %d\n", __func__, error);
-		return error;
-	}*/
-
 	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, 0, 0);
 	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, 0, 0);
-	/*input_set_abs_params(ts->input, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
-	input_set_abs_params(ts->input, ABS_MT_WIDTH_MAJOR, 0, 200, 0, 0);
-	input_set_abs_params(ts->input, ABS_MT_PRESSURE, 0, 255, 0, 0);*/
 	input_abs_set_res(ts->input, ABS_MT_POSITION_X, ts->x_res);
 	input_abs_set_res(ts->input, ABS_MT_POSITION_Y, ts->y_res);
 	
