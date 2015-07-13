@@ -671,12 +671,10 @@ static const struct i2c_device_id gsl_ts_i2c_id[] = {
 MODULE_DEVICE_TABLE(i2c, gsl_ts_i2c_id);
 
 #ifdef CONFIG_PM
-#warning Power management enabled
 static SIMPLE_DEV_PM_OPS(gsl_ts_pm_ops, gsl_ts_suspend, gsl_ts_resume);
 #endif
 
 #ifdef CONFIG_ACPI
-#warning ACPI platform
 /* GSL3680 ACPI IDs are untested */
 static const struct acpi_device_id gsl_ts_acpi_match[] = {
 	{ "MSSL1680", 0 },
@@ -689,7 +687,6 @@ MODULE_DEVICE_TABLE(acpi, gsl_ts_acpi_match);
 #endif
 
 #ifdef CONFIG_OF
-#warning OpenFirmware/DeviceTree platform
 /* This should take care of OpenFirmware and DeviceTree instantiations,
  * but they're completely untested. Volunteers welcome.
  * Is anyone using DeviceTree with this touch screen at all?
