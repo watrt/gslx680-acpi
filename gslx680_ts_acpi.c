@@ -53,9 +53,20 @@
 #define GSL_STATUS_FW 0x80
 #define GSL_STATUS_TOUCH 0x00
 
+/* TODO these are almost certainly wrong,
+ * read them from the hardware config or data sheet
+ * or make something up
+ */
+/* experimental range: x = 16..947 y = 13..631 id = 0 or 4 */
+/* theoretical range: x = 0..65535, y = 0..4096 */
 #define GSL_MAX_CONTACTS 10
-#define GSL_PRESSURE 10
-#define GSL_FINGER_SIZE 70
+#define GSL_MAX_X 1024
+#define GSL_MAX_Y 768
+#define GSL_RES_X 1
+#define GSL_RES_Y 1
+#define GSL_SWAP_XY false
+#define GSL_REVERSE_X false
+#define GSL_REVERSE_Y false
 
 #define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
 
@@ -115,26 +126,19 @@ static int gsl_ts_init(struct gsl_ts_data *ts)
 	ts->wake_irq_enabled = false;
 	ts->state = GSL_TS_INIT;
 	
-	/* TODO these are almost certainly wrong,
-	 * read them from the hardware config or data sheet
-	 * or make something up
-	 */
-	/* experimental range: x = 16..947 y = 13..631 id = 0 or 4 */
-	/* theoretical range: x = 0..65535, y = 0..4096 */
-	ts->x_max = 1024;
-	ts->y_max = 768;
-	/* for a 7" device, points/mm */
-	ts->x_res = ts->x_max / 155;
-	ts->y_res = ts->y_max / 86;
+	ts->x_max = GSL_MAX_X;
+	ts->y_max = GSL_MAX_Y;
+	ts->x_res = GSL_RES_X;
+	ts->y_res = GSL_RES_Y;
 	ts->multi_touches = GSL_MAX_CONTACTS;
 	
 	/* TODO: Find out what kind of device we have and load the appropriate firmware */
 	ts->firmware_name = FIRMWARE_1680;
 	
-	ts->x_reversed = false;
-	ts->y_reversed = false;
-	ts->xy_swapped = false;
-
+	ts->x_reversed = GSL_REVERSE_X;
+	ts->y_reversed = GSL_REVERSE_Y;
+	ts->xy_swapped = GSL_SWAP_XY;
+	
 	return 0;
 }
 
@@ -368,6 +372,16 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		id = y >> 12;
 		y &= 0xfff;
 
+		if (ts->xy_swapped) {
+			swap(x, y);
+		}
+		if (ts->x_reversed) {
+			x = ts->x_max - x;
+		}
+		if (ts->y_reversed) {
+			y = ts->y_max;
+		}
+		
 		dev_dbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x\n", __func__, i, x, y, id);
 
 		/* Most events seem to carry 0. Is this really a tracking id? */
