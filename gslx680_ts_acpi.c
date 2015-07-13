@@ -30,6 +30,7 @@
 #include <linux/input/mt.h>
 #include <linux/acpi.h>
 #include <linux/of.h>
+#include <linux/version.h>
 #include <linux/byteorder/generic.h>
 #include <asm/unaligned.h>
 
@@ -401,7 +402,11 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		/* This platform does not support finger tracking.
 		 * Use the input core finger tracker instead.
 		 */
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
+		rc = input_mt_assign_slots(input, slots, tracker, touches);
+#else
 		rc = input_mt_assign_slots(input, slots, tracker, touches, GSL_DMAX);
+#endif
 		if (rc < 0) {
 			/* TODO: I'm getting a ENXIO (no such device or address here */
 			dev_err(dev, "%s: input_mt_assign_slots returned %d\n", __func__, rc);
