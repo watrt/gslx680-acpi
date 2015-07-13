@@ -67,6 +67,7 @@
 #define GSL_SWAP_XY false
 #define GSL_REVERSE_X false
 #define GSL_REVERSE_Y false
+#define GSL_SOFT_TRACKING true
 
 #define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
 
@@ -93,10 +94,10 @@ struct gsl_ts_data {
 	unsigned int x_max;
 	unsigned int y_max;
 	unsigned int multi_touches;
-	/* unused */
 	bool x_reversed;
 	bool y_reversed;
 	bool xy_swapped;
+	bool soft_tracking;
 };
 
 /* Firmware image data chunk */
@@ -126,6 +127,9 @@ static int gsl_ts_init(struct gsl_ts_data *ts)
 	ts->wake_irq_enabled = false;
 	ts->state = GSL_TS_INIT;
 	
+	/* All these parameters are currently hardcoded.
+	 * We should read them from the DSDT, DT and/or module options instead
+	 */
 	ts->x_max = GSL_MAX_X;
 	ts->y_max = GSL_MAX_Y;
 	ts->x_res = GSL_RES_X;
@@ -138,6 +142,7 @@ static int gsl_ts_init(struct gsl_ts_data *ts)
 	ts->x_reversed = GSL_REVERSE_X;
 	ts->y_reversed = GSL_REVERSE_Y;
 	ts->xy_swapped = GSL_SWAP_XY;
+	ts->soft_tracking = GSL_SOFT_TRACKING;
 	
 	return 0;
 }
@@ -349,12 +354,15 @@ static int gsl_ts_init_chip(struct gsl_ts_data *ts)
 
 static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 {
+	int rc;
 	struct input_dev *input = ts->input;
 	struct device *dev = &ts->client->dev;
 	struct gsl_ts_packet_header header;
 	struct gsl_ts_packet_touch touch;
 	u8 i;
 	u16 tseq, x, y, id, pressure;
+	struct input_mt_pos tracker[GSL_MAX_CONTACTS];
+	int slots[GSL_MAX_CONTACTS];
 	
 	memcpy(&header, buf, sizeof(header));
 	tseq = le16_to_cpu(header.time_stamp);
@@ -384,24 +392,32 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			y = ts->y_max;
 		}
 		
-		dev_dbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
+		dev_vdbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
 
-		/* Most events seem to carry 0. Is this really a tracking id? */
-		
-		/* For now, we're dealing with the Silead as if it were a type A MT device only.
-		 * See linux/Documentation/input/multi-touch-protocol.txt for more info on how
-		 * to implement multitouch drivers.
+		tracker[i].x = x;
+		tracker[i].y = y;
+		if (!ts->soft_tracking) {
+			slots[i] = id;
+		}
+	}
+	if (ts->soft_tracking) {
+		/* This platform does not support finger tracking.
+		 * Use the input core finger tracker instead.
 		 */
-		input_event(input, EV_ABS, ABS_MT_POSITION_X, x > ts->x_max ? ts->x_max : x);
-		input_event(input, EV_ABS, ABS_MT_POSITION_Y, y > ts->y_max ? ts->y_max : y);
-		input_mt_sync_frame(input);
+		rc = input_mt_assign_slots(input, slots, tracker, header.num_fingers);
+		if (rc < 0) {
+			dev_err(dev, "%s: input_mt_assign_slots returned %d\n", __func__, rc);
+		}
 	}
 	
-	/* Insert a single sync report for zero-contact events */
-	if (header.num_fingers == 0) {
-		input_mt_sync_frame(input);
+	for (i = 0; i < header.num_fingers; i++) {
+		input_mt_slot(input, slots[i]);
+		input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
+		input_report_abs(input, ABS_MT_POSITION_X, tracker[i].x);
+		input_report_abs(input, ABS_MT_POSITION_Y, tracker[i].y);
 	}
 	
+	input_mt_sync_frame(input);
 	input_sync(input);
 }
 
