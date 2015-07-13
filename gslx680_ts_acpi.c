@@ -64,8 +64,6 @@
 #define GSL_MAX_CONTACTS 10
 #define GSL_MAX_X 1024
 #define GSL_MAX_Y 768
-#define GSL_RES_X 1
-#define GSL_RES_Y 1
 #define GSL_SWAP_XY false
 #define GSL_REVERSE_X false
 #define GSL_REVERSE_Y false
@@ -91,8 +89,6 @@ struct gsl_ts_data {
 
 	const char *firmware_name;
 	
-	unsigned int x_res;
-	unsigned int y_res;
 	unsigned int x_max;
 	unsigned int y_max;
 	unsigned int multi_touches;
@@ -134,8 +130,6 @@ static int gsl_ts_init(struct gsl_ts_data *ts)
 	 */
 	ts->x_max = GSL_MAX_X;
 	ts->y_max = GSL_MAX_Y;
-	ts->x_res = GSL_RES_X;
-	ts->y_res = GSL_RES_Y;
 	ts->multi_touches = GSL_MAX_CONTACTS;
 	
 	/* TODO: Find out what kind of device we have and load the appropriate firmware */
@@ -563,8 +557,6 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	
 	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, 0, 0);
 	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, 0, 0);
-	input_abs_set_res(ts->input, ABS_MT_POSITION_X, ts->x_res);
-	input_abs_set_res(ts->input, ABS_MT_POSITION_Y, ts->y_res);
 	
 	input_mt_init_slots(ts->input, ts->multi_touches, INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
 
