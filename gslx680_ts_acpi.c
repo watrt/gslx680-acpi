@@ -53,6 +53,8 @@
 #define GSL_STATUS_FW 0x80
 #define GSL_STATUS_TOUCH 0x00
 
+#define GSL_DMAX 10
+
 /* TODO these are almost certainly wrong,
  * read them from the hardware config or data sheet
  * or make something up
@@ -392,7 +394,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			y = ts->y_max;
 		}
 		
-		dev_vdbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
+		dev_info(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
 
 		tracker[i].x = x;
 		tracker[i].y = y;
@@ -400,11 +402,11 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			slots[i] = id;
 		}
 	}
-	if (ts->soft_tracking) {
+	if (header.num_fingers > 0 && ts->soft_tracking) {
 		/* This platform does not support finger tracking.
 		 * Use the input core finger tracker instead.
 		 */
-		rc = input_mt_assign_slots(input, slots, tracker, header.num_fingers);
+		rc = input_mt_assign_slots(input, slots, tracker, header.num_fingers, GSL_DMAX);
 		if (rc < 0) {
 			dev_err(dev, "%s: input_mt_assign_slots returned %d\n", __func__, rc);
 		}
