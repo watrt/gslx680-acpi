@@ -571,8 +571,6 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		dev_err(&client->dev, "%s: unable to register input device: %d\n", __func__, error);
 		return error;
 	}
-
-	dev_info(&client->dev, "%s: input->mt=%p input->mt->red=%p\n", __func__, ts->input->mt, ts->input->mt ? ts->input->mt->red : NULL);
 	
 	/*
 	 * Systems using device tree should set up interrupt via DTS,
