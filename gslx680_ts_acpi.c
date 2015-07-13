@@ -572,6 +572,8 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		return error;
 	}
 
+	dev_info(&client->dev, "%s: input->mt=%p input->mt->red=%p\n", __func__, ts->input->mt, ts->input->mt ? ts->input->mt->red : NULL);
+	
 	/*
 	 * Systems using device tree should set up interrupt via DTS,
 	 * the rest will use the default falling edge interrupts.
