@@ -472,8 +472,7 @@ static irqreturn_t gsl_ts_irq(int irq, void *arg)
 		
 		if ((status[0] | status[1] | status[2] | status[3]) == 0) {
 			gsl_ts_mt_event(ts, event);
-			/*gsl_ts_process_data(ts, event);*/
-			
+
 		} else {
 			dev_warn(dev, "%s: device seems to be stuck, resetting\n", __func__);
 			
