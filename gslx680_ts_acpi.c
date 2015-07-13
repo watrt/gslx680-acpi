@@ -390,7 +390,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			y = ts->y_max;
 		}
 		
-		dev_info(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
+		dev_vdbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
 
 		tracker[i].x = x;
 		tracker[i].y = y;
