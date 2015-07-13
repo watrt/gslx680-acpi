@@ -53,7 +53,7 @@
 #define GSL_STATUS_FW 0x80
 #define GSL_STATUS_TOUCH 0x00
 
-#define GSL_DMAX 10
+#define GSL_DMAX 0
 
 /* TODO these are almost certainly wrong,
  * read them from the hardware config or data sheet
@@ -362,20 +362,21 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	struct gsl_ts_packet_header header;
 	struct gsl_ts_packet_touch touch;
 	u8 i;
-	u16 tseq, x, y, id, pressure;
+	u16 touches, tseq, x, y, id, pressure;
 	struct input_mt_pos tracker[GSL_MAX_CONTACTS];
 	int slots[GSL_MAX_CONTACTS];
 	
 	memcpy(&header, buf, sizeof(header));
+	touches = header.num_fingers;
 	tseq = le16_to_cpu(header.time_stamp);
 	/* time_stamp is 0 on zero-touch events, seems to wrap around 21800 */
-	dev_vdbg(dev, "%s: got touch events for %u fingers @%u\n", __func__, header.num_fingers, tseq);
+	dev_vdbg(dev, "%s: got touch events for %u fingers @%u\n", __func__, touches, tseq);
 	
-	if (header.num_fingers > GSL_MAX_CONTACTS) {
-		header.num_fingers = GSL_MAX_CONTACTS;
+	if (touches > GSL_MAX_CONTACTS) {
+		touches = GSL_MAX_CONTACTS;
 	}
 	
-	for (i = 0; i < header.num_fingers; i++) {
+	for (i = 0; i < touches; i++) {
 		memcpy(&touch, &buf[sizeof(header) + i * sizeof(touch)], sizeof(touch));
 		y = le16_to_cpu(touch.y_z);
 		x = le16_to_cpu(touch.x_id);
@@ -402,17 +403,19 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			slots[i] = id;
 		}
 	}
-	if (header.num_fingers > 0 && ts->soft_tracking) {
+	if (ts->soft_tracking) {
 		/* This platform does not support finger tracking.
 		 * Use the input core finger tracker instead.
 		 */
-		rc = input_mt_assign_slots(input, slots, tracker, header.num_fingers, GSL_DMAX);
+		rc = input_mt_assign_slots(input, slots, tracker, touches, GSL_DMAX);
 		if (rc < 0) {
+			/* TODO: I'm getting a ENXIO (no such device or address here */
 			dev_err(dev, "%s: input_mt_assign_slots returned %d\n", __func__, rc);
+			return;
 		}
 	}
 	
-	for (i = 0; i < header.num_fingers; i++) {
+	for (i = 0; i < touches; i++) {
 		input_mt_slot(input, slots[i]);
 		input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
 		input_report_abs(input, ABS_MT_POSITION_X, tracker[i].x);
