@@ -57,8 +57,8 @@
  * read them from the hardware config or data sheet
  * or make something up
  */
-/* experimental range: x = 16..947 y = 13..631 id = 0 or 4 */
-/* theoretical range: x = 0..65535, y = 0..4096 */
+/* experimental range: x = 16..947 y = 13..631, p = 0 or 4, id = 0 */
+/* theoretical range: x/y = 0..4096, p/id = 0..15 */
 #define GSL_MAX_CONTACTS 10
 #define GSL_MAX_X 1024
 #define GSL_MAX_Y 768
@@ -114,8 +114,8 @@ struct gsl_ts_packet_header {
 } __attribute__((packed));
 /* Hardware touch event data per finger */
 struct gsl_ts_packet_touch {
-	u16 y_id; /* little endian, lower 12 bits = y, upper 4 bits = id */
-	u16 x; /* little endian */
+	u16 y_z; /* little endian, lower 12 bits = y, upper 4 bits = pressure (?) */
+	u16 x_id; /* little endian, lower 12 bits = x, upper 4 bits = id */
 } __attribute__((packed));
 
 
@@ -354,7 +354,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	struct gsl_ts_packet_header header;
 	struct gsl_ts_packet_touch touch;
 	u8 i;
-	u16 tseq, x, y, id;
+	u16 tseq, x, y, id, pressure;
 	
 	memcpy(&header, buf, sizeof(header));
 	tseq = le16_to_cpu(header.time_stamp);
@@ -367,9 +367,11 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	
 	for (i = 0; i < header.num_fingers; i++) {
 		memcpy(&touch, &buf[sizeof(header) + i * sizeof(touch)], sizeof(touch));
-		x = le16_to_cpu(touch.x);
-		y = le16_to_cpu(touch.y_id);
-		id = y >> 12;
+		y = le16_to_cpu(touch.y_z);
+		x = le16_to_cpu(touch.x_id);
+		id = x >> 12;
+		x &= 0xfff;
+		pressure = y >> 12;
 		y &= 0xfff;
 
 		if (ts->xy_swapped) {
@@ -382,7 +384,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			y = ts->y_max;
 		}
 		
-		dev_dbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x\n", __func__, i, x, y, id);
+		dev_dbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
 
 		/* Most events seem to carry 0. Is this really a tracking id? */
 		
@@ -533,15 +535,18 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	ts->input->name = "Silead GSLx680 Touchscreen";
 	ts->input->id.bustype = BUS_I2C;
-
-	__set_bit(EV_ABS, ts->input->evbit);
-
-	/* Multitouch input params setup */
+	ts->input->phys = "input/ts";
+	
+	input_set_capability(ts->input, EV_ABS, ABS_X);
+	input_set_capability(ts->input, EV_ABS, ABS_Y);
+	
 	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, 0, 0);
 	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, 0, 0);
 	input_abs_set_res(ts->input, ABS_MT_POSITION_X, ts->x_res);
 	input_abs_set_res(ts->input, ABS_MT_POSITION_Y, ts->y_res);
 	
+	input_mt_init_slots(ts->input, ts->multi_touches, INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
+
 	input_set_drvdata(ts->input, ts);
 
 	error = input_register_device(ts->input);
