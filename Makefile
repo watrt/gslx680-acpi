@@ -6,7 +6,7 @@ ARCH := $(shell uname -m | sed -e s/i.86/i386/)
 KVER := $(shell uname -r)
 KSRC := /lib/modules/$(KVER)/build
 PWD = $(shell pwd)
-MODDESTDIR := /lib/modules/$(KVER)/kernel/drivers/net/wireless/
+MODDESTDIR := /lib/modules/$(KVER)/kernel/drivers/input/touchscreen
 
 obj-m += gslx680_ts_acpi.o
 
