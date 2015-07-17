@@ -69,6 +69,8 @@
 #define GSL_REVERSE_X false
 #define GSL_REVERSE_Y false
 #define GSL_SOFT_TRACKING true
+#define GSL_JITTER 10
+#define GSL_DEADZONE 0
 
 #define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
 
@@ -97,6 +99,8 @@ struct gsl_ts_data {
 	bool y_reversed;
 	bool xy_swapped;
 	bool soft_tracking;
+	int jitter;
+	int deadzone;
 };
 
 /* Firmware image data chunk */
@@ -140,6 +144,8 @@ static int gsl_ts_init(struct gsl_ts_data *ts)
 	ts->y_reversed = GSL_REVERSE_Y;
 	ts->xy_swapped = GSL_SWAP_XY;
 	ts->soft_tracking = GSL_SOFT_TRACKING;
+	ts->jitter = GSL_JITTER;
+	ts->deadzone = GSL_DEADZONE;
 	
 	return 0;
 }
@@ -559,8 +565,8 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	input_set_capability(ts->input, EV_ABS, ABS_X);
 	input_set_capability(ts->input, EV_ABS, ABS_Y);
 	
-	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, 0, 0);
-	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, 0, 0);
+	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, ts->jitter, ts->deadzone);
+	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, ts->jitter, ts->deadzone);
 	
 	input_mt_init_slots(ts->input, ts->multi_touches, INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED | INPUT_MT_TRACK);
 
