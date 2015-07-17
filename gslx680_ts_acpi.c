@@ -63,8 +63,8 @@
 /* experimental range: x = 16..947 y = 13..631, p = 0 or 4, id = 0 */
 /* theoretical range: x/y = 0..4096, p/id = 0..15 */
 #define GSL_MAX_CONTACTS 10
-#define GSL_MAX_X 1024
-#define GSL_MAX_Y 768
+#define GSL_MAX_X 0xfff
+#define GSL_MAX_Y 0xfff
 #define GSL_SWAP_XY false
 #define GSL_REVERSE_X false
 #define GSL_REVERSE_Y false
