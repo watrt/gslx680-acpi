@@ -79,7 +79,16 @@ Running dmesg should produce some output if the device was matched
 by the driver. You should also see a message from the input
 subsystem that a new input device was added.
 
-You may then observe the output from evtest, but since finger
-tracking does not seem to work, the touch events will not
-translate to X input events. Different firmware or a finger
-tracking layer is needed to make this work.
+You may then observe the output from evtest. X.org touchscreen input
+should work too, but you will likely notice that the touch
+coordinates are very much off.
+
+You will need to calibrate the X.org touchscreen driver to make it
+work correctly. Install xinput_calibrate through your package
+manager and start it from a terminal. Some desktop environments
+may offer their own touchscreen calibrator, which you can also use.
+
+xinput_calbrator will present a series of points on the screen,
+which you should touch. It will then print a configuration block
+and instructions on where to store it. After doing so and restarting
+X, you should have a working touchscreen.
