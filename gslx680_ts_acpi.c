@@ -69,7 +69,7 @@
 #define GSL_REVERSE_X false
 #define GSL_REVERSE_Y false
 #define GSL_SOFT_TRACKING true
-#define GSL_JITTER 10
+#define GSL_JITTER 0
 #define GSL_DEADZONE 0
 
 #define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
