@@ -364,7 +364,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	struct gsl_ts_packet_touch touch;
 	u8 i;
 	u16 touches, tseq, x, y, id, pressure;
-	struct input_mt_pos tracker[GSL_MAX_CONTACTS];
+	struct input_mt_pos positions[GSL_MAX_CONTACTS];
 	int slots[GSL_MAX_CONTACTS];
 	
 	memcpy(&header, buf, sizeof(header));
@@ -398,8 +398,8 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		
 		dev_vdbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
 
-		tracker[i].x = x;
-		tracker[i].y = y;
+		positions[i].x = x;
+		positions[i].y = y;
 		if (!ts->soft_tracking) {
 			slots[i] = id;
 		}
@@ -409,9 +409,9 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		 * Use the input core finger tracker instead.
 		 */
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
-		rc = input_mt_assign_slots(input, slots, tracker, touches);
+		rc = input_mt_assign_slots(input, slots, positions, touches);
 #else
-		rc = input_mt_assign_slots(input, slots, tracker, touches, GSL_DMAX);
+		rc = input_mt_assign_slots(input, slots, positions, touches, GSL_DMAX);
 #endif
 		if (rc < 0) {
 			/* TODO: I'm getting a ENXIO (no such device or address here */
@@ -423,8 +423,8 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	for (i = 0; i < touches; i++) {
 		input_mt_slot(input, slots[i]);
 		input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
-		input_report_abs(input, ABS_MT_POSITION_X, tracker[i].x);
-		input_report_abs(input, ABS_MT_POSITION_Y, tracker[i].y);
+		input_report_abs(input, ABS_MT_POSITION_X, positions[i].x);
+		input_report_abs(input, ABS_MT_POSITION_Y, positions[i].y);
 	}
 	
 	input_mt_sync_frame(input);
