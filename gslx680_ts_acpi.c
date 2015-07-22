@@ -408,7 +408,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		/* This platform does not support finger tracking.
 		 * Use the input core finger tracker instead.
 		 */
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
 		rc = input_mt_assign_slots(input, slots, positions, touches);
 #else
 		rc = input_mt_assign_slots(input, slots, positions, touches, GSL_DMAX);
