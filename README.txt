@@ -46,7 +46,19 @@ knowing which is right for your device. You will have to try each.
 If you have a Windows driver instead, it seems some vendors will
 include a header file with the firmware. You can convert this header
 file into a firmware image using the tscfg2fw script in the
-firmware directory.
+firmware/ directory.
+
+Shortly, a new firmware format will be introduced. You can use the
+fwtool script in firmware/ to convert "classic" firmware images
+into the new format and set device parameters. This format is
+designed to provide information to the driver that cannot obtain
+anywhere else. It is particularly useful on platforms that do
+not contain touch panel and firmware parameters in the DSDT or DT.
+
+A description of the file format is included at the end of
+firmware/Firmware/Silead.pm.
+
+The driver does not support this new firmware format, however.
 
 
 Build Instructions
