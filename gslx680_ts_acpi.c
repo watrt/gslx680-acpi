@@ -414,7 +414,6 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		rc = input_mt_assign_slots(input, slots, positions, touches, GSL_DMAX);
 #endif
 		if (rc < 0) {
-			/* TODO: I'm getting a ENXIO (no such device or address here */
 			dev_err(dev, "%s: input_mt_assign_slots returned %d\n", __func__, rc);
 			return;
 		}
