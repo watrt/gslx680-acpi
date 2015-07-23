@@ -1,0 +1,147 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IO::File;
+use Getopt::Long;
+use Firmware::Silead;
+
+sub usage() {
+	print STDERR "Usage: fwtool {-i | -c <TS_CFG_DATA.fw> | -s} [-w <width>] [-h <height>] [-t <num_touches>] [-f <flags>] <firmware.fw>\n";
+	print STDERR "-i    Prints statistics and information about new-style firmware.fw\n";
+	print STDERR "-c    Converts old-style TS_CFG_DATA.fw into new-style firmware.fw\n";
+	print STDERR "-s    Sets parameters and flags\n";
+	print STDERR "      For the -c and -s modes, the following parameters may be set:\n";
+	print STDERR "-m    Sets the controller model (4-byte ASCII string, ex.: 1680)\n";
+	print STDERR "-w    Sets the width parameter\n";
+	print STDERR "-h    Sets the height parameter\n";
+	print STDERR "-t    Sets the number of supported touch points parameter\n";
+	print STDERR "-f    Sets flags, separated by commas (optional, supported flags: xflip, yflip, swap, track)\n";
+	print STDERR "      xflip enables horizontal flipping\n";
+	print STDERR "      yflip enables vertical flipping\n";
+	print STDERR "      swap enables axis swapping\n";
+	print STDERR "      track enables in-driver finger tracking (use for controllers that don't support it)\n";
+	print STDERR "      Each flag may be prefixed with 'no' to disable it.\n";
+	-1;
+}
+
+my ($mode, $tscfg, $model, $width, $height, $touches, $flags) = ('info');
+GetOptions(
+	'info' => sub { $mode = 'info'; },
+	'convert=s' => sub { $mode = 'convert'; $tscfg = $_[1]; },
+	'set' => sub { $mode = 'set'; },
+	'model=s' => \$model,
+	'width=i' => \$width,
+	'height=i' => \$height,
+	'touches=i' => \$touches,
+	'f=s' => \$flags,
+) or exit usage;
+
+my $fwfile = $ARGV[0] or exit usage;
+
+sub set_params {
+	my ($rep) = @_;
+	if (defined $model) {
+		$rep->set_model($model);
+	}
+	if (defined $width) {
+		$rep->set_width($width);
+	}
+	if (defined $height) {
+		$rep->set_height($height);
+	}
+	if (defined $touches) {
+		$rep->set_width($touches);
+	}
+	if (defined $flags) {
+		for my $flag (split /,\s*/, $flags) {
+			if ($flag =~ /^(no)?xflip$/) {
+				$rep->set_xmirrored($flag !~ /^no/);
+			} elsif ($flag =~ /^(no)?yflip$/) {
+				$rep->set_ymirrored($flag !~ /^no/);
+			} elsif ($flag =~ /^(no)?swap$/) {
+				$rep->set_swapped($flag !~ /^no/);
+			} elsif ($flag =~ /^(no)?track$/) {
+				$rep->set_tracking($flag !~ /^no/);
+			} else {
+				warn "Invalid flag: $flag";
+			}
+		}
+	}
+}
+
+if ($mode eq 'info') {
+	print "Loading $fwfile...\n";
+	my $rep = Firmware::Silead->load($fwfile) or die "Can't load firmware $fwfile: $@";
+	print "Controller model: " . $rep->model . "\n";
+	print "Panel width: " . $rep->width . "\n";
+	print "Panel height: " . $rep->height . "\n";
+	print "Number of touch points: " . $rep->touches . "\n";
+	print "X axis flipped: " . ($rep->xmirrored ? "yes" : "no") . "\n";
+	print "Y axis flipped: " . ($rep->ymirrored ? "yes" : "no") . "\n";
+	print "X and Y axes swapped: " . ($rep->swapped ? "yes" : "no") . "\n";
+	print "Software tracking enabled: " . ($rep->tracking ? "yes" : "no") . "\n";
+	my @pages = $rep->get_pages;
+	print "Number of pages: ". scalar(@pages) . "\n";
+	print "Page list:";
+	for my $page (@pages) {
+		printf " %02x", $page;
+	}
+	print "\n";
+} elsif ($mode eq 'set') {
+	print "Loading $fwfile...\n";
+	my $rep = Firmware::Silead->load($fwfile) or die "Can't load firmware $fwfile: $@";
+	print "Setting parameters...\n";
+	set_params($rep);
+	print "Saving $fwfile...\n";
+	$rep->save($fwfile);
+} elsif ($mode eq 'convert') {
+	print "Loading $tscfg...\n";
+	my $in = IO::File->new($tscfg, 'r') or die "Can't open $tscfg: $@";
+	$in->binmode;
+
+	my $rep = Firmware::Silead->new();
+	my ($page, $lastaddr, $data);
+	
+	while (!$in->eof) {
+		$in->read(my $buffer, 8);
+		my ($addr, $value) = unpack '(L2)<', $buffer;
+		if ($addr == 0xf0) {
+			if (defined $data) {
+				if (!$rep->set_page($page, $data)) {
+					die "Invalid firmware: $@";
+				}
+			}
+			$page = $value;
+			$lastaddr = undef;
+			$data = '';
+			printf "Got page 0x%02x\n", $page;
+		} else {
+			if (!defined $page) {
+				die "Invalid firmware: page command missing at start";
+			}
+			if ($addr > 128) {
+				die sprintf "Invalid firmware: invalid address %d at page 0x%02x, max 128", $addr, $page;
+			}
+			if (defined $lastaddr and $addr != $lastaddr + 4) {
+				die sprintf "Invalid firmware: non-consecutive at page 0x%02x, address 0x%02x, expected 0x%02x", $page, $addr, $lastaddr + 4;
+			}
+			$data .= substr $buffer, 4, 4;
+			$lastaddr = $addr;
+		}
+	}
+	if (defined $page and defined $data) {
+		# the last page has not been stored yet
+		if (!$rep->set_page($page, $data)) {
+			die "Invalid firmware: $@";
+		}
+	}
+	
+	print "Setting parameters...\n";
+	set_params($rep);
+
+	print "Saving $fwfile...\n";
+	$rep->save($fwfile);
+	
+	$in->close;
+}
