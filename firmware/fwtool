@@ -51,7 +51,7 @@ sub set_params {
 		$rep->set_height($height);
 	}
 	if (defined $touches) {
-		$rep->set_width($touches);
+		$rep->set_touches($touches);
 	}
 	if (defined $flags) {
 		for my $flag (split /,\s*/, $flags) {
