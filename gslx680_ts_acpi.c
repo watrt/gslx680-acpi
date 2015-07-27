@@ -36,8 +36,7 @@
 
 /* Device and driver information */
 #define DEVICE_NAME	"gslx680"
-#define DRV_VERSION	"1.0.0"
-#define FIRMWARE_1680 "gsl1680.fw"
+#define DRIVER_VERSION	"2.0.0"
 
 /* Hardware API constants */
 #define GSL_DATA_REG 0x80
@@ -54,25 +53,19 @@
 #define GSL_STATUS_FW 0x80
 #define GSL_STATUS_TOUCH 0x00
 
-#define GSL_DMAX 0
-
-/* TODO these are almost certainly wrong,
- * read them from the hardware config or data sheet
- * or make something up
- */
-/* experimental range: x = 16..947 y = 13..631, p = 0 or 4, id = 0 */
-/* theoretical range: x/y = 0..4096, p/id = 0..15 */
 #define GSL_MAX_CONTACTS 10
-#define GSL_MAX_X 0xfff
-#define GSL_MAX_Y 0xfff
-#define GSL_SWAP_XY false
-#define GSL_REVERSE_X false
-#define GSL_REVERSE_Y false
-#define GSL_SOFT_TRACKING true
+#define GSL_DMAX 0
 #define GSL_JITTER 0
 #define GSL_DEADZONE 0
 
 #define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
+
+#define GSL_FW_NAME "silead_ts.fw"
+#define GSL_FW_VERSION 1
+#define GSL_FW_ID_LIT(a,b,c,d) (((a) & 0xff) | (((b) & 0xff) << 8) | (((c) & 0xff) << 16) | (((d) & 0xff) << 24))
+#define GSL_FW_MAGIC GSL_FW_ID_LIT('G','S','L','X')
+#define GSL_FW_MODEL_LIT(m) GSL_FW_ID_LIT((m)/1000%10+'0',(m)/100%10+'0',(m)/10%10+'0',(m)%10+'0')
+#define GSL_FW_MODEL_1680 GSL_FW_MODEL_LIT(1680)
 
 /* Driver state */
 enum gsl_ts_state {
@@ -90,8 +83,6 @@ struct gsl_ts_data {
 	
 	bool wake_irq_enabled;
 
-	const char *firmware_name;
-	
 	unsigned int x_max;
 	unsigned int y_max;
 	unsigned int multi_touches;
@@ -103,10 +94,25 @@ struct gsl_ts_data {
 	int deadzone;
 };
 
-/* Firmware image data chunk */
-struct gsl_ts_fw_chunk {
-	u32 address;
-	u8 data[4];
+/* Firmware header */
+struct gsl_ts_fw_header {
+	u32 magic;
+	u32 model;
+	u16 version;
+	u16 touches;
+	u16 width;
+	u16 height;
+	u8 swapped;
+	u8 xflipped;
+	u8 yflipped;
+	u8 tracking;
+	u32 pages;
+} __attribute__((packed));
+/* Firmware data page */
+struct gsl_ts_fw_page {
+	u16 address;
+	u16 size;
+	u8 data[128];
 } __attribute__((packed));
 
 /* TODO use get_unaligned_le16 instead of packed structures */
@@ -123,34 +129,50 @@ struct gsl_ts_packet_touch {
 } __attribute__((packed));
 
 
-static int gsl_ts_init(struct gsl_ts_data *ts)
+static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
 {
+	struct gsl_ts_fw_header *header;
+	u32 magic;
+	u16 version;
+	
 	dev_dbg(&ts->client->dev, "%s: initialising driver state\n", __func__);
 	
 	ts->wake_irq_enabled = false;
 	ts->state = GSL_TS_INIT;
 	
-	/* All these parameters are currently hardcoded.
-	 * We should read them from the DSDT, DT and/or module options instead
-	 */
-	ts->x_max = GSL_MAX_X;
-	ts->y_max = GSL_MAX_Y;
-	ts->multi_touches = GSL_MAX_CONTACTS;
+	if (fw->size < sizeof(struct gsl_ts_fw_header)) {
+		dev_err(&ts->client->dev, "%s: invalid firmware, file too small.\n", __func__);
+		return -EINVAL;
+	}
+
+	header = (struct gsl_ts_fw_header *) fw->data;
+	magic = le32_to_cpu(header->magic);
+	if (magic != GSL_FW_MAGIC) {
+		dev_err(&ts->client->dev, "%s: invalid firmware, invalid magic 0x%08x.\n", __func__, magic);
+		return -EINVAL;
+	}
+
+	version = le16_to_cpu(header->version);
+	if (version != GSL_FW_VERSION) {
+		dev_err(&ts->client->dev, "%s: invalid firmware, unsupported version %d.\n", __func__, version);
+		return -EINVAL;
+	}
 	
-	/* TODO: Find out what kind of device we have and load the appropriate firmware */
-	ts->firmware_name = FIRMWARE_1680;
+	ts->x_max = le16_to_cpu(header->width);
+	ts->y_max = le16_to_cpu(header->height);
+	ts->multi_touches = le16_to_cpu(header->touches);
 	
-	ts->x_reversed = GSL_REVERSE_X;
-	ts->y_reversed = GSL_REVERSE_Y;
-	ts->xy_swapped = GSL_SWAP_XY;
-	ts->soft_tracking = GSL_SOFT_TRACKING;
+	ts->x_reversed = header->xflipped ? 1 : 0;
+	ts->y_reversed = header->yflipped ? 1 : 0;
+	ts->xy_swapped = header->swapped ? 1 : 0;
+	ts->soft_tracking = header->tracking ? 1 : 0;
 	ts->jitter = GSL_JITTER;
 	ts->deadzone = GSL_DEADZONE;
-	
+
 	return 0;
 }
 
-static int gsl_ts_write(struct i2c_client *client, u8 reg, u8 *pdata, int datalen)
+static int gsl_ts_write(struct i2c_client *client, u8 reg, const u8 *pdata, int datalen)
 {
 	u8 buf[GSL_PAGE_SIZE + 1];
 	unsigned int bytelen = 0;
@@ -233,123 +255,42 @@ static int gsl_ts_reset_chip(struct i2c_client *client)
 	return 0;
 }
 
-static int gsl_ts_write_fw(struct gsl_ts_data *ts)
+static int gsl_ts_write_fw(struct gsl_ts_data *ts, const struct firmware *fw)
 {
 	int rc = 0;
 	struct i2c_client *client = ts->client;
-	const struct firmware *fw;
-	size_t index;
-	struct gsl_ts_fw_chunk chunk;
-	u8 page[GSL_PAGE_SIZE];
-	size_t buffered = 0;
-	u8 offset = 0;
-	u32 address;
-	
-	memset(page, 0, sizeof(page));
+	const struct gsl_ts_fw_header *header;
+	const struct gsl_ts_fw_page *page;
+	u32 pages, address;
+	u16 size;
+	size_t i;
 	
 	dev_dbg(&client->dev, "%s: sending firmware\n", __func__);
 
-	rc = request_firmware(&fw, ts->firmware_name, &client->dev);
-	if (rc) {
-		dev_err(&client->dev, "%s: failed to load %s, %d.\n", __func__, ts->firmware_name, rc);
+	header = (const struct gsl_ts_fw_header *) fw->data;
+	pages = le32_to_cpu(header->pages);
+	if (fw->size < sizeof(struct gsl_ts_fw_header) + pages * sizeof(struct gsl_ts_fw_page)) {
+		dev_err(&client->dev, "%s: firmware page data too small.\n", __func__);
 		return -EINVAL;
 	}
 	
-	/* Each data transfer chunk is 8 bytes - make sure we don't overread */
-	for (index = 0; rc >= 0 && index + sizeof(chunk) <= fw->size; index += sizeof(chunk)) {
-		/* Copy the next chunk of data from the firmware image */
-		memcpy(&chunk, &fw->data[index], sizeof(chunk));
-		address = le32_to_cpu(chunk.address);
-		
-		/* Check if the address offset is the page register */
-		if (address == GSL_PAGE_REG) {
-			/* Copy and transfer the data, this sets the current memory page */
-			memcpy(page, &chunk.data, sizeof(chunk.data));
-			rc = gsl_ts_write(client, GSL_PAGE_REG, page, sizeof(chunk.data));
-			if (rc < 0) {
-				dev_err(&client->dev, "%s: failed to set page register near offset 0x%zx\n", __func__, index);
-			}
-			
-			/* Reset the data, size and offset */
-			memset(page, 0, sizeof(page));
-			buffered = 0;
-			offset = 0;
+	for (i = 0; rc >= 0 && i < pages; i++) {
+		page = (const struct gsl_ts_fw_page *) &fw->data[sizeof(struct gsl_ts_fw_header) + i * sizeof(struct gsl_ts_fw_page)];
+		/* The controller expects a little endian address */
+		address = cpu_to_le32(le16_to_cpu(page->address));
+		size = le16_to_cpu(page->size);
+		rc = gsl_ts_write(client, GSL_PAGE_REG, (u8 *) &address, sizeof(address));
+		if (rc < 0) {
+			dev_err(&client->dev, "%s: error setting page register. (page = 0x%x)\n", __func__, le32_to_cpu(address));
 		} else {
-			/* Check if the address is valid */
-			if (address <= GSL_PAGE_SIZE - sizeof(chunk.data)) {
-				/* Verify that the data is consecutive.
-				 * It may start at an offset > 0, but holes are not allowed.
-				 */
-				if (buffered == 0) {
-					/* The first chunk may have any offset inside the page boundaries */
-					offset = (u8) address;
-				} else {
-					/* Check for data consecutivity */
-					if (offset + buffered != address) {
-						dev_err(&client->dev, "%s: invalid firmware data, hole detected at offset 0x%zx\n", __func__, index);
-						rc = -EINVAL;
-					}
-				}
-				
-				if (rc >= 0) {
-					/* Store the data chunk into the page buffer.
-					 * Note: It seems to be byte-swapped, but should be
-					 * transfered to hardware as-is. 
-					 */
-					memcpy(&page[buffered], &chunk.data, sizeof(chunk.data));
-					
-					/* Update the data size */
-					buffered += sizeof(chunk.data);
-					
-					/* Check if have a full page yet */
-					if (buffered + offset >= GSL_PAGE_SIZE) {
-						/* Transfer one page */
-						rc = gsl_ts_write(client, offset, page, buffered);
-						if (rc < 0) {
-							dev_err(&client->dev, "%s: failed to transfer firmware page near offset 0x%zx\n", __func__, index);
-						}
-						
-						/* Reset the data, size and offset */
-						memset(page, 0, sizeof(page));
-						buffered = 0;
-						offset = 0;
-					}
-				}
-			} else {
-				dev_err(&client->dev, "%s: invalid firmware data, page address 0x%x out of bounds found at offset 0x%zx\n", __func__, address, index);
-				rc = -EINVAL;
+			rc = gsl_ts_write(client, 0, page->data, size);
+			if (rc < 0) {
+				dev_err(&client->dev, "%s: error writing page data. (page = 0x%x)\n", __func__, le32_to_cpu(address));
 			}
 		}
 	}
 	
-	release_firmware(fw);
-	
 	if (rc < 0) {
-		return rc;
-	}
-	return 0;
-}
-
-static int gsl_ts_init_chip(struct gsl_ts_data *ts)
-{
-	int rc;
-	struct i2c_client *client = ts->client;
-
-	dev_dbg(&client->dev, "%s: initialising\n", __func__);
-
-	rc = gsl_ts_reset_chip(client);
-	if (rc < 0) {
-		dev_err(&client->dev, "%s: chip reset failed: %d\n", __func__, rc);
-		return rc;
-	}
-	rc = gsl_ts_write_fw(ts);
-	if (rc < 0) {
-		dev_err(&client->dev, "%s: firmware transfer failed: %d\n", __func__, rc);
-		return rc;
-	}  
-	rc = gsl_ts_startup_chip(client);
-	if (rc < 0) {
-		dev_err(&client->dev, "%s: chip startup failed: %d\n", __func__, rc);
 		return rc;
 	}
 	return 0;
@@ -504,6 +445,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	struct gsl_ts_data *ts;
 	struct acpi_device *ac;
 	struct device_node *of;
+	const struct firmware *fw;
 	unsigned long irqflags;
 	int error;
 	
@@ -545,16 +487,23 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts->client = client;
 	i2c_set_clientdata(client, ts);
 
-	error = gsl_ts_init(ts);
-	if (error) {
-		dev_err(&client->dev, "%s: failed to initialize: %d\n", __func__, error);
+	error = request_firmware(&fw, GSL_FW_NAME, &ts->client->dev);
+	if (error < 0) {
+		dev_err(&client->dev, "%s: failed to load firmware: %d\n", __func__, error);
 		return error;
+	}
+	
+	error = gsl_ts_init(ts, fw);
+	if (error < 0) {
+		dev_err(&client->dev, "%s: failed to initialize: %d\n", __func__, error);
+		goto release_fw;
 	}
 
 	ts->input = devm_input_allocate_device(&client->dev);
 	if (!ts->input) {
 		dev_err(&client->dev, "%s: failed to allocate input device\n", __func__);
-		return -ENOMEM;
+		error = -ENOMEM;
+		goto release_fw;
 	}
 
 	ts->input->name = "Silead GSLx680 Touchscreen";
@@ -574,7 +523,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	error = input_register_device(ts->input);
 	if (error) {
 		dev_err(&client->dev, "%s: unable to register input device: %d\n", __func__, error);
-		return error;
+		goto release_fw;
 	}
 	
 	/*
@@ -595,14 +544,24 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	);
 	if (error) {
 		dev_err(&client->dev, "%s: failed to register interrupt\n", __func__);
-		return error;
+		goto release_fw;
 	}
 
 	/* Execute the controller startup sequence */
-	error = gsl_ts_init_chip(ts);
+	error = gsl_ts_reset_chip(client);
 	if (error < 0) {
-		dev_err(&client->dev, "%s: initialisation failed\n", __func__);
-		return error;
+		dev_err(&client->dev, "%s: chip reset failed\n", __func__);
+		goto release_fw;
+	}
+	error = gsl_ts_write_fw(ts, fw);
+	if (error < 0) {
+		dev_err(&client->dev, "%s: firmware transfer failed\n", __func__);
+		goto release_fw;
+	}  
+	error = gsl_ts_startup_chip(client);
+	if (error < 0) {
+		dev_err(&client->dev, "%s: chip startup failed\n", __func__);
+		goto release_fw;
 	}
 	
 	/*
@@ -615,6 +574,14 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	
 	ts->state = GSL_TS_GREEN;
 
+release_fw:
+	if (fw) {
+		release_firmware(fw);
+	}
+	
+	if (error < 0) {
+		return error;
+	}
 	return 0;
 }
 
@@ -724,5 +691,5 @@ module_i2c_driver(gslx680_ts_driver);
 
 MODULE_DESCRIPTION("GSLX680 touchscreen controller driver");
 MODULE_AUTHOR("Gregor Riepl <onitake@gmail.com>");
-MODULE_VERSION(DRV_VERSION);
+MODULE_VERSION(DRIVER_VERSION);
 MODULE_LICENSE("GPL");
