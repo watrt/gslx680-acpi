@@ -54,6 +54,7 @@
 #define GSL_STATUS_TOUCH 0x00
 
 #define GSL_MAX_CONTACTS 10
+#define GSL_MAX_AXIS 0xfff
 #define GSL_DMAX 0
 #define GSL_JITTER 0
 #define GSL_DEADZONE 0
@@ -141,26 +142,34 @@ static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
 	ts->state = GSL_TS_INIT;
 	
 	if (fw->size < sizeof(struct gsl_ts_fw_header)) {
-		dev_err(&ts->client->dev, "%s: invalid firmware, file too small.\n", __func__);
+		dev_err(&ts->client->dev, "%s: invalid firmware: file too small.\n", __func__);
 		return -EINVAL;
 	}
 
 	header = (struct gsl_ts_fw_header *) fw->data;
 	magic = le32_to_cpu(header->magic);
 	if (magic != GSL_FW_MAGIC) {
-		dev_err(&ts->client->dev, "%s: invalid firmware, invalid magic 0x%08x.\n", __func__, magic);
+		dev_err(&ts->client->dev, "%s: invalid firmware: invalid magic 0x%08x.\n", __func__, magic);
 		return -EINVAL;
 	}
 
 	version = le16_to_cpu(header->version);
 	if (version != GSL_FW_VERSION) {
-		dev_err(&ts->client->dev, "%s: invalid firmware, unsupported version %d.\n", __func__, version);
+		dev_err(&ts->client->dev, "%s: invalid firmware: unsupported version %d.\n", __func__, version);
 		return -EINVAL;
 	}
 	
 	ts->x_max = le16_to_cpu(header->width);
 	ts->y_max = le16_to_cpu(header->height);
 	ts->multi_touches = le16_to_cpu(header->touches);
+	if (ts->x_max == 0 || ts->y_max == 0 || ts->multi_touches == 0) {
+		dev_err(&ts->client->dev, "%s: invalid firmware: panel width, height or number of touch points is zero.\n", __func__);
+		return -EINVAL;
+	}
+	if (ts->x_max > GSL_MAX_AXIS || ts->y_max > GSL_MAX_AXIS || ts->multi_touches > GSL_MAX_CONTACTS) {
+		dev_err(&ts->client->dev, "%s: invalid firmware: maximum panel width, height or number of touch points exceeded.\n", __func__);
+		return -EINVAL;
+	}
 	
 	ts->x_reversed = header->xflipped ? 1 : 0;
 	ts->y_reversed = header->yflipped ? 1 : 0;
