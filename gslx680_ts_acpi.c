@@ -59,13 +59,26 @@
 #define GSL_JITTER 0
 #define GSL_DEADZONE 0
 
-#define GSL_PACKET_SIZE (GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + sizeof(struct gsl_ts_packet_header))
+#define GSL_PACKET_SIZE ( \
+	GSL_MAX_CONTACTS * sizeof(struct gsl_ts_packet_touch) + \
+	sizeof(struct gsl_ts_packet_header) \
+)
 
 #define GSL_FW_NAME "silead_ts.fw"
 #define GSL_FW_VERSION 1
-#define GSL_FW_ID_LIT(a,b,c,d) (((a) & 0xff) | (((b) & 0xff) << 8) | (((c) & 0xff) << 16) | (((d) & 0xff) << 24))
-#define GSL_FW_MAGIC GSL_FW_ID_LIT('G','S','L','X')
-#define GSL_FW_MODEL_LIT(m) GSL_FW_ID_LIT((m)/1000%10+'0',(m)/100%10+'0',(m)/10%10+'0',(m)%10+'0')
+#define GSL_FW_ID_LIT(a, b, c, d) ( \
+	((a) & 0xff) | \
+	(((b) & 0xff) << 8) | \
+	(((c) & 0xff) << 16) | \
+	(((d) & 0xff) << 24) \
+)
+#define GSL_FW_MAGIC GSL_FW_ID_LIT('G', 'S', 'L', 'X')
+#define GSL_FW_MODEL_LIT(m) GSL_FW_ID_LIT( \
+	(m)/1000%10+'0', \
+	(m)/100%10+'0', \
+	(m)/10%10+'0', \
+	(m)%10+'0' \
+)
 #define GSL_FW_MODEL_1680 GSL_FW_MODEL_LIT(1680)
 
 /* Driver state */
@@ -81,7 +94,7 @@ struct gsl_ts_data {
 	struct input_dev *input;
 
 	enum gsl_ts_state state;
-	
+
 	bool wake_irq_enabled;
 
 	unsigned int x_max;
@@ -108,13 +121,13 @@ struct gsl_ts_fw_header {
 	u8 yflipped;
 	u8 tracking;
 	u32 pages;
-} __attribute__((packed));
+} __packed;
 /* Firmware data page */
 struct gsl_ts_fw_page {
 	u16 address;
 	u16 size;
 	u8 data[128];
-} __attribute__((packed));
+} __packed;
 
 /* TODO use get_unaligned_le16 instead of packed structures */
 /* Hardware touch event data header */
@@ -122,12 +135,12 @@ struct gsl_ts_packet_header {
 	u8 num_fingers;
 	u8 reserved;
 	u16 time_stamp; /* little-endian */
-} __attribute__((packed));
+} __packed;
 /* Hardware touch event data per finger */
 struct gsl_ts_packet_touch {
 	u16 y_z; /* little endian, lower 12 bits = y, upper 4 bits = pressure (?) */
 	u16 x_id; /* little endian, lower 12 bits = x, upper 4 bits = id */
-} __attribute__((packed));
+} __packed;
 
 
 static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
@@ -135,12 +148,12 @@ static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
 	struct gsl_ts_fw_header *header;
 	u32 magic;
 	u16 version;
-	
+
 	dev_dbg(&ts->client->dev, "%s: initialising driver state\n", __func__);
-	
+
 	ts->wake_irq_enabled = false;
 	ts->state = GSL_TS_INIT;
-	
+
 	if (fw->size < sizeof(struct gsl_ts_fw_header)) {
 		dev_err(&ts->client->dev, "%s: invalid firmware: file too small.\n", __func__);
 		return -EINVAL;
@@ -158,7 +171,7 @@ static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
 		dev_err(&ts->client->dev, "%s: invalid firmware: unsupported version %d.\n", __func__, version);
 		return -EINVAL;
 	}
-	
+
 	ts->x_max = le16_to_cpu(header->width);
 	ts->y_max = le16_to_cpu(header->height);
 	ts->multi_touches = le16_to_cpu(header->touches);
@@ -170,7 +183,7 @@ static int gsl_ts_init(struct gsl_ts_data *ts, const struct firmware *fw)
 		dev_err(&ts->client->dev, "%s: invalid firmware: maximum panel width, height or number of touch points exceeded.\n", __func__);
 		return -EINVAL;
 	}
-	
+
 	ts->x_reversed = header->xflipped ? 1 : 0;
 	ts->y_reversed = header->yflipped ? 1 : 0;
 	ts->xy_swapped = header->swapped ? 1 : 0;
@@ -185,38 +198,38 @@ static int gsl_ts_write(struct i2c_client *client, u8 reg, const u8 *pdata, int 
 {
 	u8 buf[GSL_PAGE_SIZE + 1];
 	unsigned int bytelen = 0;
-	
+
 	if (datalen > GSL_MAX_WRITE) {
 		dev_err(&client->dev, "%s: data transfer too large (%d > %d)\n", __func__, datalen, GSL_MAX_WRITE);
 		return -EINVAL;
 	}
-	
+
 	buf[0] = reg;
 	bytelen++;
-	
+
 	if (datalen != 0 && pdata != NULL) {
 		memcpy(&buf[bytelen], pdata, datalen);
 		bytelen += datalen;
 	}
-	
+
 	return i2c_master_send(client, buf, bytelen);
 }
 
 static int gsl_ts_read(struct i2c_client *client, u8 reg, u8 *pdata, unsigned int datalen)
 {
 	int ret = 0;
-	
+
 	if (datalen > GSL_MAX_READ) {
 		dev_err(&client->dev, "%s: data transfer too large (%d > %d)\n", __func__, datalen, GSL_MAX_READ);
 		return -EINVAL;
 	}
-	
+
 	ret = gsl_ts_write(client, reg, NULL, 0);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: sending register location failed\n", __func__);
 		return ret;
 	}
-	
+
 	return i2c_master_recv(client, pdata, datalen);
 }
 
@@ -224,9 +237,11 @@ static int gsl_ts_startup_chip(struct i2c_client *client)
 {
 	int rc;
 	u8 tmp = 0x00;
+
 	dev_dbg(&client->dev, "%s: starting up\n", __func__);
 	rc = gsl_ts_write(client, 0xe0, &tmp, 1);
-	msleep(10);
+	usleep_range(10000, 20000);
+
 	return rc;
 }
 
@@ -243,24 +258,24 @@ static int gsl_ts_reset_chip(struct i2c_client *client)
 		dev_err(&client->dev, "%s: gsl_ts_write 1 fail!\n", __func__);
 		return rc;
 	}
-	msleep(10);
-	
+	usleep_range(10000, 20000);
+
 	arg[0] = 0x04;
 	rc = gsl_ts_write(client, 0xe4, arg, 1);
 	if (rc < 0) {
 		dev_err(&client->dev, "%s: gsl_ts_write 2 fail!\n", __func__);
 		return rc;
 	}
-	msleep(10);
-	
+	usleep_range(10000, 20000);
+
 	arg[0] = 0x00;
 	rc = gsl_ts_write(client, 0xbc, arg, 4);
 	if (rc < 0) {
 		dev_err(&client->dev, "%s: gsl_ts_write 3 fail!\n", __func__);
 		return rc;
 	}
-	msleep(10);
-	
+	usleep_range(10000, 20000);
+
 	return 0;
 }
 
@@ -273,7 +288,7 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts, const struct firmware *fw)
 	u32 pages, address;
 	u16 size;
 	size_t i;
-	
+
 	dev_dbg(&client->dev, "%s: sending firmware\n", __func__);
 
 	header = (const struct gsl_ts_fw_header *) fw->data;
@@ -282,7 +297,7 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts, const struct firmware *fw)
 		dev_err(&client->dev, "%s: firmware page data too small.\n", __func__);
 		return -EINVAL;
 	}
-	
+
 	for (i = 0; rc >= 0 && i < pages; i++) {
 		page = (const struct gsl_ts_fw_page *) &fw->data[sizeof(struct gsl_ts_fw_header) + i * sizeof(struct gsl_ts_fw_page)];
 		/* The controller expects a little endian address */
@@ -298,7 +313,7 @@ static int gsl_ts_write_fw(struct gsl_ts_data *ts, const struct firmware *fw)
 			}
 		}
 	}
-	
+
 	if (rc < 0) {
 		return rc;
 	}
@@ -316,17 +331,17 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	u16 touches, tseq, x, y, id, pressure;
 	struct input_mt_pos positions[GSL_MAX_CONTACTS];
 	int slots[GSL_MAX_CONTACTS];
-	
+
 	memcpy(&header, buf, sizeof(header));
 	touches = header.num_fingers;
 	tseq = le16_to_cpu(header.time_stamp);
 	/* time_stamp is 0 on zero-touch events, seems to wrap around 21800 */
 	dev_vdbg(dev, "%s: got touch events for %u fingers @%u\n", __func__, touches, tseq);
-	
+
 	if (touches > GSL_MAX_CONTACTS) {
 		touches = GSL_MAX_CONTACTS;
 	}
-	
+
 	for (i = 0; i < touches; i++) {
 		memcpy(&touch, &buf[sizeof(header) + i * sizeof(touch)], sizeof(touch));
 		y = le16_to_cpu(touch.y_z);
@@ -345,7 +360,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		if (ts->y_reversed) {
 			y = ts->y_max - y;
 		}
-		
+
 		dev_vdbg(dev, "%s: touch event %u: x=%u y=%u id=0x%x p=%u\n", __func__, i, x, y, id, pressure);
 
 		positions[i].x = x;
@@ -358,7 +373,7 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 		/* This platform does not support finger tracking.
 		 * Use the input core finger tracker instead.
 		 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 		rc = input_mt_assign_slots(input, slots, positions, touches);
 #else
 		rc = input_mt_assign_slots(input, slots, positions, touches, GSL_DMAX);
@@ -368,14 +383,14 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 			return;
 		}
 	}
-	
+
 	for (i = 0; i < touches; i++) {
 		input_mt_slot(input, slots[i]);
 		input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
 		input_report_abs(input, ABS_MT_POSITION_X, positions[i].x);
 		input_report_abs(input, ABS_MT_POSITION_Y, positions[i].y);
 	}
-	
+
 	input_mt_sync_frame(input);
 	input_sync(input);
 }
@@ -388,7 +403,7 @@ static irqreturn_t gsl_ts_irq(int irq, void *arg)
 	struct device *dev = &client->dev;
 	u8 status[4] = { 0, 0, 0, 0 };
 	u8 event[GSL_PACKET_SIZE];
-	
+
 	dev_dbg(&client->dev, "%s: IRQ received\n", __func__);
 
 	if (ts->state == GSL_TS_SHUTDOWN) {
@@ -401,11 +416,11 @@ static irqreturn_t gsl_ts_irq(int irq, void *arg)
 		dev_err(dev, "%s: error reading chip status\n", __func__);
 		return IRQ_HANDLED;
 	}
-	
+
 	if (status[0] == GSL_STATUS_FW) {
 		/* TODO: Send firmware here instead of during init */
 		dev_info(dev, "%s: device waiting for firmware\n", __func__);
-		
+
 	} else if (status[0] == GSL_STATUS_TOUCH) {
 		dev_vdbg(dev, "%s: touch event\n", __func__);
 
@@ -418,19 +433,19 @@ static irqreturn_t gsl_ts_irq(int irq, void *arg)
 			dev_warn(dev, "%s: ignoring invalid touch record (0xff)\n", __func__);
 			return IRQ_HANDLED;
 		}
-		
+
 		rc = gsl_ts_read(client, GSL_TOUCH_STATUS_REG, status, sizeof(status));
 		if (rc < 0) {
 			dev_err(dev, "%s: reading touch status register failed\n", __func__);
 			return IRQ_HANDLED;
 		}
-		
+
 		if ((status[0] | status[1] | status[2] | status[3]) == 0) {
 			gsl_ts_mt_event(ts, event);
 
 		} else {
 			dev_warn(dev, "%s: device seems to be stuck, resetting\n", __func__);
-			
+
 			rc = gsl_ts_reset_chip(ts->client);
 			if (rc < 0) {
 				dev_err(dev, "%s: reset_chip failed\n", __func__);
@@ -445,7 +460,7 @@ static irqreturn_t gsl_ts_irq(int irq, void *arg)
 	} else {
 		dev_warn(&client->dev, "%s: IRQ received, unknown status 0x%02x\n", __func__, status[0]);
 	}
-	
+
 	return IRQ_HANDLED;
 }
 
@@ -457,21 +472,21 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	const struct firmware *fw;
 	unsigned long irqflags;
 	int error;
-	
+
 	dev_warn(&client->dev, "%s: got a device named %s at address 0x%x, IRQ %d, flags 0x%x\n", __func__, client->name, client->addr, client->irq, client->flags);
-	
+
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(&client->dev, "%s: i2c check functionality error\n", __func__);
 		return -ENXIO;
 	}
-	
+
 	ac = ACPI_COMPANION(&client->dev);
 	if (ac) {
 		/* Set up ACPI device descriptor GPIO name mappings, needs a corresponding acpi_dev_remove_driver_gpios(ac) */
 		/*acpi_dev_add_driver_gpios(ac, gsl_ts_acpi_gpios);*/
-		
+
 		/* Extract the GPIO configuration from the device descriptor */
-		
+
 		/* Wake the device up with a power on reset */
 		error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D3);
 		if (error == 0) {
@@ -482,10 +497,10 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 			return error;
 		}
 	}
-	
+
 	of = of_node_get(client->dev.of_node);
 	if (of) {
-		
+		/* TODO add wakeup code for DT */
 	}
 
 	ts = devm_kzalloc(&client->dev, sizeof(struct gsl_ts_data), GFP_KERNEL);
@@ -501,7 +516,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		dev_err(&client->dev, "%s: failed to load firmware: %d\n", __func__, error);
 		return error;
 	}
-	
+
 	error = gsl_ts_init(ts, fw);
 	if (error < 0) {
 		dev_err(&client->dev, "%s: failed to initialize: %d\n", __func__, error);
@@ -518,13 +533,13 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts->input->name = "Silead GSLx680 Touchscreen";
 	ts->input->id.bustype = BUS_I2C;
 	ts->input->phys = "input/ts";
-	
+
 	input_set_capability(ts->input, EV_ABS, ABS_X);
 	input_set_capability(ts->input, EV_ABS, ABS_Y);
-	
+
 	input_set_abs_params(ts->input, ABS_MT_POSITION_X, 0, ts->x_max, ts->jitter, ts->deadzone);
 	input_set_abs_params(ts->input, ABS_MT_POSITION_Y, 0, ts->y_max, ts->jitter, ts->deadzone);
-	
+
 	input_mt_init_slots(ts->input, ts->multi_touches, INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED | INPUT_MT_TRACK);
 
 	input_set_drvdata(ts->input, ts);
@@ -534,7 +549,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		dev_err(&client->dev, "%s: unable to register input device: %d\n", __func__, error);
 		goto release_fw;
 	}
-	
+
 	/*
 	 * Systems using device tree should set up interrupt via DTS,
 	 * the rest will use the default falling edge interrupts.
@@ -566,13 +581,13 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	if (error < 0) {
 		dev_err(&client->dev, "%s: firmware transfer failed\n", __func__);
 		goto release_fw;
-	}  
+	}
 	error = gsl_ts_startup_chip(client);
 	if (error < 0) {
 		dev_err(&client->dev, "%s: chip startup failed\n", __func__);
 		goto release_fw;
 	}
-	
+
 	/*
 	 * Systems using device tree should set up wakeup via DTS,
 	 * the rest will configure device as wakeup source by default.
@@ -580,14 +595,14 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	if (!client->dev.of_node) {
 		device_init_wakeup(&client->dev, true);
 	}
-	
+
 	ts->state = GSL_TS_GREEN;
 
 release_fw:
 	if (fw) {
 		release_firmware(fw);
 	}
-	
+
 	if (error < 0) {
 		return error;
 	}
@@ -598,17 +613,17 @@ static int __maybe_unused gsl_ts_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct gsl_ts_data *ts = i2c_get_clientdata(client);
-	
+
 	dev_warn(&client->dev, "%s: suspending device\n", __func__);
-	
+
 	disable_irq(client->irq);
-	
+
 	gsl_ts_reset_chip(client);
-	msleep(10);
+	usleep_range(10000, 20000);
 
 	/* Do we need to do this ourselves? */
 	acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D3);
-	
+
 	if (device_may_wakeup(dev)) {
 		ts->wake_irq_enabled = (enable_irq_wake(client->irq) == 0);
 	}
@@ -628,18 +643,18 @@ static int __maybe_unused gsl_ts_resume(struct device *dev)
 	if (device_may_wakeup(dev) && ts->wake_irq_enabled) {
 		disable_irq_wake(client->irq);
 	}
-	
+
 	/* Do we need to do this ourselves? */
 	acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D0);
-	msleep(20);
-	
+	usleep_range(20000, 50000);
+
 	gsl_ts_reset_chip(client);
 	gsl_ts_startup_chip(client);
-	
+
 	enable_irq(client->irq);
 
 	ts->state = GSL_TS_GREEN;
-	
+
 	return 0;
 }
 
