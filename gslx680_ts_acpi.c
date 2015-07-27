@@ -325,16 +325,16 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	int rc;
 	struct input_dev *input = ts->input;
 	struct device *dev = &ts->client->dev;
-	struct gsl_ts_packet_header header;
-	struct gsl_ts_packet_touch touch;
+	struct gsl_ts_packet_header *header;
+	struct gsl_ts_packet_touch *touch;
 	u8 i;
 	u16 touches, tseq, x, y, id, pressure;
 	struct input_mt_pos positions[GSL_MAX_CONTACTS];
 	int slots[GSL_MAX_CONTACTS];
 
-	memcpy(&header, buf, sizeof(header));
-	touches = header.num_fingers;
-	tseq = le16_to_cpu(header.time_stamp);
+	header = (struct gsl_ts_packet_header *) buf;
+	touches = header->num_fingers;
+	tseq = le16_to_cpu(header->time_stamp);
 	/* time_stamp is 0 on zero-touch events, seems to wrap around 21800 */
 	dev_vdbg(dev, "%s: got touch events for %u fingers @%u\n", __func__, touches, tseq);
 
@@ -343,9 +343,9 @@ static void gsl_ts_mt_event(struct gsl_ts_data *ts, u8 *buf)
 	}
 
 	for (i = 0; i < touches; i++) {
-		memcpy(&touch, &buf[sizeof(header) + i * sizeof(touch)], sizeof(touch));
-		y = le16_to_cpu(touch.y_z);
-		x = le16_to_cpu(touch.x_id);
+		touch = (struct gsl_ts_packet_touch *) &buf[sizeof(*header) + i * sizeof(*touch)];
+		y = le16_to_cpu(touch->y_z);
+		x = le16_to_cpu(touch->x_id);
 		id = x >> 12;
 		x &= 0xfff;
 		pressure = y >> 12;
