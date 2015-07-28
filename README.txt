@@ -48,17 +48,39 @@ include a header file with the firmware. You can convert this header
 file into a firmware image using the tscfg2fw script in the
 firmware/ directory.
 
-Shortly, a new firmware format will be introduced. You can use the
-fwtool script in firmware/ to convert "classic" firmware images
-into the new format and set device parameters. This format is
-designed to provide information to the driver that cannot obtain
-anywhere else. It is particularly useful on platforms that do
-not contain touch panel and firmware parameters in the DSDT or DT.
+Example:
+./firmware/tscfg2fw TS_CFG.h gslxxxx.fw
 
-A description of the file format is included at the end of
-firmware/Firmware/Silead.pm.
+The resulting firmware image is suitable for the original code
+this driver is based on, but starting from version 2.0.0, a new
+format will be introduced. The new format is cleaner and requires
+less format checks on the driver side. It also includes device
+parameters like panel width and height, number of touch points
+and others.
 
-The driver does not support this new firmware format, however.
+A new tool, 'firmware/fwtool', is available to convert legacy
+firmware into the new format. You will also need to pass options
+specifying the hardware parameters to the converter, or the
+resulting firmware will not be loaded by the driver. The file
+format is described in 'firmware/Firmware/Silead.pm'. Use
+perldoc or a text editor to read.
+
+Example usage:
+./fwtool -c gslxxxx.fw -m 1680 -w 940 -h 750 -t 10 -f track silead_ts.fw
+
+This will read gslxxxx.fw, convert it into silead_ts.fw in the
+new format, then set the controller type to GSL1680, the panel
+width to 940 dots, the height to 750 dots, the maximum number
+of touch points to 10 and enable software finger tracking.
+
+You might still need to calibrate the touchscreen later, if
+the numbers are unknown or not accurate. Note that the maximum
+width and height are 4095. The driver is currently hardcoded
+to a touch point limit of 10 fingers, so specifying more than
+that will not work.
+
+The resulting firmware should be named silead_ts.fw and
+installed into /lib/firmware
 
 
 Build Instructions
@@ -80,10 +102,10 @@ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- KDIR=../linux-arm
 Install Instructions
 ====================
 
-The driver is currently incomplete, but it will generate multitouch
-events.
+Install appropriate firmware for your device, as per the Firmware
+Instructions above.
 
-Load the driver with
+Load and test the driver with
 
 insmod ./gslx680_ts_acpi.ko
 
@@ -92,15 +114,17 @@ by the driver. You should also see a message from the input
 subsystem that a new input device was added.
 
 You may then observe the output from evtest. X.org touchscreen input
-should work too, but you will likely notice that the touch
-coordinates are very much off.
+should work too, but you will notice that the touch points are
+off if the panel width and height were not set accurately.
 
-You will need to calibrate the X.org touchscreen driver to make it
-work correctly. Install xinput_calibrate through your package
-manager and start it from a terminal. Some desktop environments
-may offer their own touchscreen calibrator, which you can also use.
+This can be fixed by installing xinput_calibrate and using it to
+generate a configuration file for your touchscreen. Some desktop
+environments may offer their own touchscreen calibrator,
+which you can also use.
 
-xinput_calbrator will present a series of points on the screen,
-which you should touch. It will then print a configuration block
-and instructions on where to store it. After doing so and restarting
-X, you should have a working touchscreen.
+xinput_calbrator, when run from an X terminal,  will present a
+series of points on the screen. Touch each of them when prompted,
+then save the configuration printed to the terminal to the
+indicated location.
+
+After restarting X, you should have a working touchscreen.
