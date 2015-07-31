@@ -10,7 +10,7 @@ if len(sys.argv) != 2:
 
 filename = sys.argv[1]
 
-p = Popen(['/bin/sh', '-c', 'readelf -S '+ filename + ' | grep .rodata\ '], stdout=PIPE)
+p = Popen(['/bin/sh', '-c', 'readelf -S '+ filename + ' | grep -w .rodata\ '], stdout=PIPE)
 
 args = p.stdout.readlines()
 
