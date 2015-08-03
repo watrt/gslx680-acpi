@@ -20,19 +20,14 @@
 #include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
-#include <linux/async.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
-#include <linux/uaccess.h>
-#include <linux/buffer_head.h>
-#include <linux/slab.h>
 #include <linux/firmware.h>
 #include <linux/input/mt.h>
 #include <linux/acpi.h>
 #include <linux/of.h>
+#include <linux/gpio/consumer.h>
 #include <linux/version.h>
-#include <linux/byteorder/generic.h>
-#include <asm/unaligned.h>
 
 /* Device and driver information */
 #define DEVICE_NAME	"gslx680"
@@ -52,6 +47,8 @@
 #define GSL_MAX_WRITE 128
 #define GSL_STATUS_FW 0x80
 #define GSL_STATUS_TOUCH 0x00
+
+#define GSL_PWR_GPIO "power"
 
 #define GSL_MAX_CONTACTS 10
 #define GSL_MAX_AXIS 0xfff
@@ -92,7 +89,8 @@ enum gsl_ts_state {
 struct gsl_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input;
-
+	struct gpio_desc *gpio;
+	
 	enum gsl_ts_state state;
 
 	bool wake_irq_enabled;
@@ -464,11 +462,18 @@ static irqreturn_t gsl_ts_irq(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+static const struct acpi_gpio_params gsl_ts_power_gpio = { 0, 0, true };
+static const struct acpi_gpio_mapping gsl_ts_acpi_gpios[] = {
+	{ "power-gpio", &gsl_ts_power_gpio, 1 },
+	{ },
+};
+#endif
+
 static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct gsl_ts_data *ts;
 	struct acpi_device *ac;
-	struct device_node *of;
 	const struct firmware *fw;
 	unsigned long irqflags;
 	int error;
@@ -480,13 +485,32 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		return -ENXIO;
 	}
 
+	if (client->irq <= 0) {
+		dev_err(&client->dev, "%s: missing IRQ configuration\n", __func__);
+		return -ENODEV;
+	}
+	
+	ts = devm_kzalloc(&client->dev, sizeof(struct gsl_ts_data), GFP_KERNEL);
+	if (!ts) {
+		return -ENOMEM;
+	}
+	
+	ts->client = client;
+	i2c_set_clientdata(client, ts);
+	
 	ac = ACPI_COMPANION(&client->dev);
 	if (ac) {
-		/* Set up ACPI device descriptor GPIO name mappings, needs a corresponding acpi_dev_remove_driver_gpios(ac) */
-		/*acpi_dev_add_driver_gpios(ac, gsl_ts_acpi_gpios);*/
-
-		/* Extract the GPIO configuration from the device descriptor */
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+		/* Set up ACPI device descriptor GPIO name mappings.
+		 * This is a fallback, it will only be used if the system does not
+		 * provide a corresponding _DSD entry.
+		 */
+		error = acpi_dev_add_driver_gpios(ac, gsl_ts_acpi_gpios);
+		if (error < 0) {
+			dev_warn(&client->dev, "%s: failed to register GPIO names, continuing anyway\n", __func__);
+		}
+#endif
+		
 		/* Wake the device up with a power on reset */
 		error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D3);
 		if (error == 0) {
@@ -494,27 +518,32 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		}
 		if (error) {
 			dev_err(&client->dev, "%s: failed to wake up device through ACPI: %d\n", __func__, error);
-			return error;
+			goto release_gpios;
 		}
 	}
 
-	of = of_node_get(client->dev.of_node);
-	if (of) {
-		/* TODO add wakeup code for DT */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+	ts->gpio = devm_gpiod_get(&client->dev, GSL_PWR_GPIO);
+#else
+	ts->gpio = devm_gpiod_get(&client->dev, GSL_PWR_GPIO, GPIOD_OUT_LOW);
+#endif
+	if (IS_ERR(ts->gpio)) {
+		dev_err(&client->dev, "%s: error obtaining power pin GPIO resource\n", __func__);
+		error = PTR_ERR(ts->gpio);
+		goto release_gpios;
 	}
-
-	ts = devm_kzalloc(&client->dev, sizeof(struct gsl_ts_data), GFP_KERNEL);
-	if (!ts) {
-		return -ENOMEM;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+	error = gpiod_direction_output(ts->gpio, 0);
+	if (error < 0) {
+		dev_err(&client->dev, "%s: error setting GPIO pin direction\n", __func__);
+		goto release_gpios;
 	}
-
-	ts->client = client;
-	i2c_set_clientdata(client, ts);
-
+#endif
+	
 	error = request_firmware(&fw, GSL_FW_NAME, &ts->client->dev);
 	if (error < 0) {
 		dev_err(&client->dev, "%s: failed to load firmware: %d\n", __func__, error);
-		return error;
+		goto release_gpios;
 	}
 
 	error = gsl_ts_init(ts, fw);
@@ -603,9 +632,21 @@ release_fw:
 		release_firmware(fw);
 	}
 
+release_gpios:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	acpi_dev_remove_driver_gpios(ACPI_COMPANION(&client->dev));
+#endif
+
 	if (error < 0) {
 		return error;
 	}
+	return 0;
+}
+
+int gsl_ts_remove(struct i2c_client *client) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	acpi_dev_remove_driver_gpios(ACPI_COMPANION(&client->dev));
+#endif
 	return 0;
 }
 
@@ -695,11 +736,12 @@ MODULE_DEVICE_TABLE(of, gsl_ts_of_match);
 #endif
 
 static struct i2c_driver gslx680_ts_driver = {
-	.probe      = gsl_ts_probe,
-	.id_table   = gsl_ts_i2c_id,
+	.probe = gsl_ts_probe,
+	.remove = gsl_ts_remove,
+	.id_table = gsl_ts_i2c_id,
 	.driver = {
-		.name   = DEVICE_NAME,
-		.owner  = THIS_MODULE,
+		.name = DEVICE_NAME,
+		.owner = THIS_MODULE,
 #ifdef CONFIG_PM
 		.pm = &gsl_ts_pm_ops,
 #endif
