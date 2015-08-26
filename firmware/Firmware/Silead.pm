@@ -387,8 +387,8 @@ Removes page C<$page_no>.
  4        | u8[4]   | Touchscreen model (ASCII string)
  8        | u16le   | File format version (1)
  10       | u16le   | Number of supported touch events
- 12       | u16le   | Panel width (0..4096)
- 14       | u16le   | Panel height (0..4096)
+ 12       | u16le   | Panel width (0..4095)
+ 14       | u16le   | Panel height (0..4095)
  16       | u8      | 1 if X and Y axis are swapped, 0 otherwise
  17       | u8      | 1 if X axis is mirrored, 0 otherwise
  18       | u8      | 1 if Y axis is mirrored, 0 otherwise
@@ -401,7 +401,7 @@ Removes page C<$page_no>.
  ...
  24+N*132 | u16le   | Memory page N: Page address
  26+N*132 | u16le   | Memory page N: Effective size in bytes
- 28+N*132 | u32le   | Memory page N: Data (must be 0 padded)
+ 28+N*132 | u8[128] | Memory page N: Data (must be 0 padded)
 
 =head1 AUTHOR
 
