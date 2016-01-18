@@ -49,18 +49,17 @@ is just a scrambled version of TS_CFG.h and can be easily
 converted by XORing every byte with 0x88.
 
 The tool firmware/scrambled2tscfg will do this for you:
-./firmware/scrambled2tscf SileadTouch.fw TS_CFG.h
+./firmware/scrambled2tscfg SileadTouch.fw TS_CFG.h
 
 Once you have obtained the TS_CFG.h, you can convert it into
 a legacy format firmware image using firmware/tscfg2fw:
 ./firmware/tscfg2fw TS_CFG.h gslxxxx.fw
 
-The resulting firmware image is suitable for the original code
-this driver is based on, but starting from version 2.0.0, a new
-format will be introduced. The new format is cleaner and requires
-less format checks on the driver side. It also includes device
-parameters like panel width and height, number of touch points
-and others.
+The resulting firmware image is suitable for the all drivers based
+on the original Android code. To use it with gslx680_ts_acpi, you
+need to convert it into a new format. This format is cleaner,
+easier to process, and contains device parameters such as panel
+width and height, number of touch points and feature flags.
 
 A new tool, 'firmware/fwtool', is available to convert legacy
 firmware into the new format. You will also need to pass options
