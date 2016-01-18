@@ -43,12 +43,16 @@ different hardware configurations with the same driver. The extractor
 will spit those out as seperate files. We currently have no way of
 knowing which is right for your device. You will have to try each.
 
-If you have a Windows driver instead, it seems some vendors will
-include a header file with the firmware. You can convert this header
-file into a firmware image using the tscfg2fw script in the
-firmware/ directory.
+If you have a Windows driver instead, the firmware either comes in
+the form of a file named TS_CFG.h or SileadTouch.fw. The latter
+is just a scrambled version of TS_CFG.h and can be easily
+converted by XORing every byte with 0x88.
 
-Example:
+The tool firmware/scrambled2tscfg will do this for you:
+./firmware/scrambled2tscf SileadTouch.fw TS_CFG.h
+
+Once you have obtained the TS_CFG.h, you can convert it into
+a legacy format firmware image using firmware/tscfg2fw:
 ./firmware/tscfg2fw TS_CFG.h gslxxxx.fw
 
 The resulting firmware image is suitable for the original code
