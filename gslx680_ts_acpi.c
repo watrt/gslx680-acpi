@@ -533,8 +533,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 			error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D0);
 		}
 		if (error) {
-			dev_err(&client->dev, "%s: failed to wake up device through ACPI: %d\n", __func__, error);
-			goto release_gpios;
+			dev_err(&client->dev, "%s: failed to wake up device through ACPI: %d, continuting anyway\n", __func__, error);
 		}
 	}
 	
