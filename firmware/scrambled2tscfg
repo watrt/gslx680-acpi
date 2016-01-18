@@ -1,0 +1,26 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use IO::File;
+
+sub usage() {
+	print STDERR "Usage: scrambled2tscfg SileadTouch.fw GSL_TS_CFG.h\n";
+	-1;
+}
+
+my $scrfile = $ARGV[0] or exit usage;
+my $headerfile = $ARGV[1] or exit usage;
+
+my $in = IO::File->new($scrfile, 'r') or die "Can't open $scrfile: $!";
+$in->binmode;
+my $out = IO::File->new($headerfile, 'w') or die "Can't open $headerfile: $!";
+
+while (!$in->eof) {
+	$in->read(my $byte, 1) or die "Can't read from input: $!";
+	my $descrambled = chr(ord($byte) ^ 0x88);
+	$out->print($descrambled);
+}
+
+$out->close;
+$in->close;
