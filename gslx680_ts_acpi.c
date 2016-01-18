@@ -630,11 +630,11 @@ release_fw:
 	}
 
 release_gpios:
+	if (error < 0) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	acpi_dev_remove_driver_gpios(ACPI_COMPANION(&client->dev));
+		acpi_dev_remove_driver_gpios(ACPI_COMPANION(&client->dev));
 #endif
 
-	if (error < 0) {
 		return error;
 	}
 	return 0;
