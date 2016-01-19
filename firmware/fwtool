@@ -47,9 +47,6 @@ GetOptions(
 ) or exit usage;
 
 my $fwfile = $ARGV[0] or exit usage;
-if ($format ne 'plain') {
-	die "Only plain style firmware is currently supported.";
-}
 
 sub set_params {
 	my ($rep) = @_;
