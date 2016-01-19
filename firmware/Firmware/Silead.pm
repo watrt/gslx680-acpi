@@ -152,6 +152,62 @@ sub pack {
 	return $data;
 }
 
+sub import_scrambled {
+	my ($self, $data) = @_;
+	die "Not implemented";
+}
+
+sub import_tscfg {
+	my ($self, $data) = @_;
+	die "Not implemented";
+}
+
+sub import_fw {
+	my ($self, $input) = @_;
+	
+	my $length = length $input;
+	
+	my ($page, $lastaddr, $data);
+	for (my $offset = 0; $offset + 7 < $length; $offset += 8) {
+		my $buffer = substr $input, $offset, 8;
+		my ($addr, $value) = unpack '(L2)<', $buffer;
+		if ($addr == 0xf0) {
+			if (defined $data) {
+				$self->set_page($page, $data) or return 0;
+			}
+			$page = $value;
+			$lastaddr = undef;
+			$data = '';
+			printf "Got page 0x%02x\n", $page;
+		} else {
+			if (!defined $page) {
+				$@ = "Invalid firmware: page command missing at start";
+				return 0;
+			}
+			if ($addr > 128) {
+				$@ = sprintf "Invalid firmware: invalid address %d at page 0x%02x, max 128", $addr, $page;
+				return 0;
+			}
+			if (defined $lastaddr and $addr != $lastaddr + 4) {
+				$@ = sprintf "Invalid firmware: non-consecutive at page 0x%02x, address 0x%02x, expected 0x%02x", $page, $addr, $lastaddr + 4;
+				return 0;
+			}
+			$data .= substr $buffer, 4, 4;
+			$lastaddr = $addr;
+		}
+	}
+	if (defined $page and defined $data) {
+		# the last page has not been stored yet
+		return $self->set_page($page, $data);
+	}
+	return 1;
+}
+
+sub export_fw {
+	my ($self) = @_;
+	die "Not implemented";
+}
+
 sub set_page {
 	my ($self, $page, $data) = @_;
 	if ($page > 0xff) {
@@ -292,6 +348,31 @@ C<$io> may be a file handle or a file name.
 =head3 C<unpack($string)>
 
 Unpacks a firmware image from a byte string.
+
+=head2 Import/Export
+
+These methods allow importing firmware data from various formats.
+Limited export is also available.
+
+=head3 C<import_scrambled($string)>
+
+Import a firmware image from a scrambled TS_CFG.h byte string, as used in the form
+of SileadTouch.fw by newer Windows drivers.
+
+=head3 C<import_tscfg($string)>
+
+Import a firmware image from a plain TS_CFG.h byte string, as used by older
+Windows drivers.
+
+=head3 C<import_fw($string)>
+
+Import a firmware image in legacy format, as used by most other Linux and
+Android drivers.
+
+=head3 C<export_fw>
+
+Export a firmware image into legacy format, as usable by most other Linux and
+Android drivers. A binary string is returned.
 
 =head2 Storage
 
