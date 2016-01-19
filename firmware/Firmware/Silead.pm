@@ -158,8 +158,26 @@ sub import_scrambled {
 }
 
 sub import_tscfg {
-	my ($self, $data) = @_;
-	die "Not implemented";
+	my ($self, $input) = @_;
+	my ($cfg, $fw) = (0, '');
+	for my $line (split /\n/, $input) {
+		if ($cfg and $line =~ /};/) {
+			$cfg = 0;
+		}
+		if ($line =~ /TS_CFG_DATA/) {
+			$cfg = 1;
+		}
+		if ($cfg) {
+			$line =~ s/\s//g;
+			$line = lc($line);
+			if ($line =~ /{0x([0-9a-f]+),0x([0-9a-f]+)},/) {
+				my $address = hex($1);
+				my $data = hex($2);
+				$fw .= pack '(LL)<', $address, $data;
+			}
+		}
+	}
+	return $self->import_fw($fw);
 }
 
 sub import_fw {
