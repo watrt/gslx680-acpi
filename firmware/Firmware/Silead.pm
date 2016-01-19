@@ -153,8 +153,13 @@ sub pack {
 }
 
 sub import_scrambled {
-	my ($self, $data) = @_;
-	die "Not implemented";
+	my ($self, $input) = @_;
+	my $tscfg = '';
+	for my $byte (split //, $input) {
+		my $descrambled = chr(ord($byte) ^ 0x88);
+		$tscfg .= $descrambled;
+	}
+	return $self->import_tscfg($tscfg);
 }
 
 sub import_tscfg {
