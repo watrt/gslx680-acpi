@@ -7,14 +7,15 @@ use Getopt::Long;
 use Firmware::Silead;
 
 sub usage() {
-	print STDERR "Usage: fwtool {-i | -c <original.fw> | -s} [ -1 | -2 | -3 ] [-w <width>] [-h <height>] [-t <num_touches>] [-f <flags>] <firmware.fw>\n";
+	print STDERR "Usage: fwtool {-i | -c <original.fw> | -s | -x <legacy.fw>} [ -1 | -2 | -3 ] [-w <width>] [-h <height>] [-t <num_touches>] [-f <flags>] <firmware.fw>\n";
 	print STDERR "-i    Prints statistics and information about new-style firmware.fw\n";
 	print STDERR "-c    Converts any older firmware format into new-style firmware.fw\n";
 	print STDERR "-s    Sets parameters and flags\n";
+	print STDERR "-x    Exports a firmware into plain format, to use with other Linux/Android drivers\n";
 	print STDERR "      The source firmware format can be specified with these parameters:\n";
-	print STDERR "-1    Plain firmware, as used in the Android driver (default)\n";
+	print STDERR "-1    Plain firmware, as used with the Android driver (default)\n";
 	print STDERR "-2    Windows GSL_TS_CFG.h firmware\n";
-	print STDERR "-3    Scrambled Windows SileaTouch.fw firmware\n";
+	print STDERR "-3    Scrambled Windows SileadTouch.fw firmware\n";
 	print STDERR "      For the -c and -s modes, the following parameters may be set:\n";
 	print STDERR "-m    Sets the controller model (4-byte ASCII string, ex.: 1680)\n";
 	print STDERR "-w    Sets the width parameter\n";
@@ -29,11 +30,12 @@ sub usage() {
 	-1;
 }
 
-my ($mode, $format, $tscfg, $model, $width, $height, $touches, $flags) = ('info', 'plain');
+my ($mode, $format, $tscfg, $model, $width, $height, $touches, $flags, $plain) = ('info', 'plain');
 GetOptions(
 	'info' => sub { $mode = 'info'; },
 	'convert=s' => sub { $mode = 'convert'; $tscfg = $_[1]; },
 	'set' => sub { $mode = 'set'; },
+	'xport=s' => sub { $mode = 'export'; $plain = $_[1]; },
 	'model=s' => \$model,
 	'width=i' => \$width,
 	'height=i' => \$height,
@@ -100,51 +102,30 @@ if ($mode eq 'info') {
 	print "\n";
 } elsif ($mode eq 'set') {
 	print "Loading $fwfile...\n";
-	my $rep = Firmware::Silead->load($fwfile) or die "Can't load firmware $fwfile: $!";
+	my $rep = Firmware::Silead->load($fwfile) or die "Can't load firmware $fwfile: $@";
 	print "Setting parameters...\n";
 	set_params($rep);
 	print "Saving $fwfile...\n";
 	$rep->save($fwfile);
 } elsif ($mode eq 'convert') {
 	print "Loading $tscfg...\n";
-	my $in = IO::File->new($tscfg, 'r') or die "Can't open $tscfg: $!";
-	$in->binmode;
-
-	my $rep = Firmware::Silead->new();
-	my ($page, $lastaddr, $data);
+	my $data;
+	do {
+		my $in = IO::File->new($tscfg, 'r') or die "Can't open $tscfg: $!";
+		$in->binmode;
+		local $/ = undef;
+		$data = <$in>;
+		defined($data) or die "Can't load firmware: $!";
+		$in->close();
+	};
 	
-	while (!$in->eof) {
-		$in->read(my $buffer, 8) or die "Can't read firmware: $!";
-		my ($addr, $value) = unpack '(L2)<', $buffer;
-		if ($addr == 0xf0) {
-			if (defined $data) {
-				if (!$rep->set_page($page, $data)) {
-					die "Invalid firmware: $@";
-				}
-			}
-			$page = $value;
-			$lastaddr = undef;
-			$data = '';
-			printf "Got page 0x%02x\n", $page;
-		} else {
-			if (!defined $page) {
-				die "Invalid firmware: page command missing at start";
-			}
-			if ($addr > 128) {
-				die sprintf "Invalid firmware: invalid address %d at page 0x%02x, max 128", $addr, $page;
-			}
-			if (defined $lastaddr and $addr != $lastaddr + 4) {
-				die sprintf "Invalid firmware: non-consecutive at page 0x%02x, address 0x%02x, expected 0x%02x", $page, $addr, $lastaddr + 4;
-			}
-			$data .= substr $buffer, 4, 4;
-			$lastaddr = $addr;
-		}
-	}
-	if (defined $page and defined $data) {
-		# the last page has not been stored yet
-		if (!$rep->set_page($page, $data)) {
-			die "Invalid firmware: $@";
-		}
+	my $rep = Firmware::Silead->new();
+	if ($format eq 'plain') {
+		$rep->import_fw($data) or die "Can't parse firmware: $@";
+	} elsif ($format eq 'tscfg') {
+		$rep->import_tscfg($data) or die "Can't parse firmware: $@";
+	} elsif ($format eq 'scrambled') {
+		$rep->import_scrambled($data) or die "Can't parse firmware: $@";
 	}
 	
 	print "Setting parameters...\n";
@@ -152,6 +133,12 @@ if ($mode eq 'info') {
 
 	print "Saving $fwfile...\n";
 	$rep->save($fwfile) or die "Can't write firmware: $@";
-	
-	$in->close();
+} elsif ($mode eq 'export') {
+	print "Loading $fwfile...\n";
+	my $rep = Firmware::Silead->load($fwfile) or die "Can't load firmware $fwfile: $@";
+	print "Exporting to $plain...\n";
+	my $out = IO::File->new($plain, 'w') or die "Can't open $plain: $!";
+	my $data = $rep->export_fw();
+	$out->print($data) or die "Can't write firmware: $!";
+	$out->close();
 }
