@@ -291,7 +291,7 @@ C<$io> may be a file handle or a file name.
 
 =head3 C<unpack($string)>
 
-Loads a firmware image from a data string.
+Unpacks a firmware image from a byte string.
 
 =head2 Storage
 
@@ -300,9 +300,9 @@ Loads a firmware image from a data string.
 Saves the firmware data to a file.
 C<$io> may be a file handle or a file name.
 
-=head3 C<pack($string)>
+=head3 C<pack>
 
-Unpacks a firmware image from a data string.
+Packs a firmware image into a byte string and returns it.
 
 =head2 Accessors
 
@@ -358,7 +358,7 @@ driver finger tracking will be used instead.
 =head2 Page access
 
 On error, all page accessors set C<$@> to a description
-of the error. They return 1 on success, 0 otherwise.
+of the error. They return 1 on success, 0 on error.
 
 =head3 C<get_pages>
 
@@ -395,9 +395,9 @@ Removes page C<$page_no>.
  19       | u8      | 0 if finger tracking is supported by hardware,
           |         | 1 if the driver needs to provide it
  20       | u32le   | Number of memory pages that follow (N)
- 24       | u16le   | Memory page 0: Page address
- 26       | u16le   | Memory page 0: Effective size in bytes
- 28       | u8[128] | Memory page 0: Data (must be 0 padded)
+ 24       | u16le   | Memory page 1: Page address
+ 26       | u16le   | Memory page 1: Effective size in bytes
+ 28       | u8[128] | Memory page 1: Data (must be 0 padded)
  ...
  24+N*132 | u16le   | Memory page N: Page address
  26+N*132 | u16le   | Memory page N: Effective size in bytes
