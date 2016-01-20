@@ -48,33 +48,27 @@ the form of a file named TS_CFG.h or SileadTouch.fw. The latter
 is just a scrambled version of TS_CFG.h and can be easily
 converted by XORing every byte with 0x88.
 
-The tool firmware/scrambled2tscfg will do this for you:
-./firmware/scrambled2tscfg SileadTouch.fw TS_CFG.h
+Any of these three firmware formats must be converted into the
+compact format supported by gslx680-acpi. Use ./firmware/fwtool
+to handle this job. It also sets some non-generic device
+parameters, such as panel width and height, tracking support, etc.
 
-Once you have obtained the TS_CFG.h, you can convert it into
-a legacy format firmware image using firmware/tscfg2fw:
-./firmware/tscfg2fw TS_CFG.h gslxxxx.fw
-
-The resulting firmware image is suitable for the all drivers based
-on the original Android code. To use it with gslx680_ts_acpi, you
-need to convert it into a new format. This format is cleaner,
-easier to process, and contains device parameters such as panel
-width and height, number of touch points and feature flags.
-
-A new tool, 'firmware/fwtool', is available to convert legacy
-firmware into the new format. You will also need to pass options
-specifying the hardware parameters to the converter, or the
-resulting firmware will not be loaded by the driver. The file
-format is described in 'firmware/Firmware/Silead.pm'. Use
-perldoc or a text editor to read.
+The file format is described in 'firmware/Firmware/Silead.pm'.
+Use perldoc or a text editor to read.
 
 Example usage:
 ./fwtool -c gslxxxx.fw -m 1680 -w 940 -h 750 -t 10 -f track silead_ts.fw
 
-This will read gslxxxx.fw, convert it into silead_ts.fw in the
-new format, then set the controller type to GSL1680, the panel
+This will read legacy gslxxxx.fw, convert it into silead_ts.fw in
+the new format, then set the controller type to GSL1680, the panel
 width to 940 dots, the height to 750 dots, the maximum number
 of touch points to 10 and enable software finger tracking.
+
+To convert the scrambled SileadTouch.fw from a Windows driver:
+./fwtool -c SileadTouch.fw -3 -m 1680 -w 940 -h 750 -t 10 silead_ts.fw
+
+And for an unscrambled TS_CFG.h:
+./fwtool -c TS_CFG.h -2 -m 1680 -w 940 -h 750 -t 10 silead_ts.fw
 
 You might still need to calibrate the touchscreen later, if
 the numbers are unknown or not accurate. Note that the maximum
@@ -83,7 +77,13 @@ to a touch point limit of 10 fingers, so specifying more than
 that will not work.
 
 The resulting firmware should be named silead_ts.fw and
-installed into /lib/firmware
+installed into /lib/firmware so the driver can find it.
+
+To convert a firmware image back into legacy format, use:
+./fwtool -x gslxxxx.fw silead_ts.fw
+
+Note that memory page order is not preserved. This should not
+pose a problem for the controller, however.
 
 
 Build Instructions

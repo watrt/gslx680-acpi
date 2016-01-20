@@ -388,6 +388,9 @@ Unpacks a firmware image from a byte string.
 These methods allow importing firmware data from various formats.
 Limited export is also available.
 
+Note: Page order is not preserved when importing firmware.
+Pages are always sorted sequentially.
+
 =head3 C<import_scrambled($string)>
 
 Import a firmware image from a scrambled TS_CFG.h byte string, as used in the form
