@@ -228,7 +228,18 @@ sub import_fw {
 
 sub export_fw {
 	my ($self) = @_;
-	die "Not implemented";
+	my $data = '';
+	my @pages = $self->get_pages;
+	for my $page (@pages) {
+		my $pagedata = $self->get_page($page);
+		$data .= pack '(L2)<', 0xf0, $page;
+		my $length = length $pagedata;
+		for (my $offset = 0; $offset + 3 < $length; $offset += 4) {
+			my $word = substr $pagedata, $offset, 4;
+			$data .= pack '(La4)<', $offset, $word;
+		}
+	}
+	return $data;
 }
 
 sub set_page {
