@@ -3,21 +3,16 @@ About
 
 This is a generic Linux kernel driver for the Silead GSLx68y
 series of touch screen controllers.
-It is currently designed to work with ACPI platforms, but
+It is currently designed to work on ACPI platforms, but
 support for DeviceTree/OpenFirmware is also in the works.
 
 The code was adapted from the platform specific driver here:
 https://github.com/jabjoe/sunxi-gslx680
 
-The driver is currently incomplete and will only send ABS_X/Y
-events to the input subsystem. It seems some versions of the
-controller (or its firmware) do not support finger tracking,
-or additional initialisation code is necessary to enable it.
-
-The display resolution is currently hardcoded as 1024x768.
-There seems to be a hardware register that contains the panel
-data, but due to the lack of a complete data sheet, the
-location of this register is currently unknown.
+Kernel-based finger tracking is available and can be enabled if
+the hardware doesn't support it. It works reasonably well,
+but touches close to the edges are not registered reliably,
+and dragging is very inaccurate.
 
 
 Firmware Instructions
