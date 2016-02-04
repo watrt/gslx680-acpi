@@ -24,7 +24,7 @@ repository: https://github.com/onitake/gsl-firmware
 
 If your device is not mentioned yet, or the required silead_ts.fw
 is not available, please post a request in the issue tracker there,
-or consult https://github.com/onitake/gsl-firmware/README.md
+or consult [gsl-firmware/README.md](https://github.com/onitake/gsl-firmware/blob/master/README.md)
 for information on how to obtain the firmware yourself.
 
 
