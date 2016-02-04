@@ -22,8 +22,8 @@ sub usage() {
 	print STDERR "-h    Sets the height parameter\n";
 	print STDERR "-t    Sets the number of supported touch points parameter\n";
 	print STDERR "-f    Sets flags, separated by commas (optional, supported flags: xflip, yflip, swap, track)\n";
-	print STDERR "      xflip enables horizontal flipping\n";
-	print STDERR "      yflip enables vertical flipping\n";
+	print STDERR "      xflip enables horizontal flipping (i.e. mirroring along the x/long axis)\n";
+	print STDERR "      yflip enables vertical flipping (i.e. mirroring along the y/short axis)\n";
 	print STDERR "      swap enables axis swapping\n";
 	print STDERR "      track enables in-driver finger tracking (use for controllers that don't support it)\n";
 	print STDERR "      Each flag may be prefixed with 'no' to disable it.\n";
