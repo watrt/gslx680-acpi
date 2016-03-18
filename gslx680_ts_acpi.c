@@ -492,7 +492,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	ts->gpio = devm_gpiod_get_index(&client->dev, GSL_PWR_GPIO, 0);
 #else
-	ts->gpio_power = devm_gpiod_get_index(&client->dev, GSL_PWR_GPIO, 0, GPIOD_OUT_LOW);
+	ts->gpio = devm_gpiod_get_index(&client->dev, GSL_PWR_GPIO, 0, GPIOD_OUT_LOW);
 #endif
 	if (IS_ERR(ts->gpio)) {
 		dev_err(&client->dev, "%s: error obtaining power pin GPIO resource\n", __func__);
