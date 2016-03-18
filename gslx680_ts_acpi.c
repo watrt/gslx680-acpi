@@ -489,6 +489,17 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts->client = client;
 	i2c_set_clientdata(client, ts);
 	
+	if (ACPI_COMPANION(&client->dev)) {
+		/* Wake the device up with a power on reset */
+		error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D3);
+		if (error == 0) {
+			error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D0);
+		}
+		if (error) {
+			dev_err(&client->dev, "%s: failed to wake up device through ACPI: %d, continuting anyway\n", __func__, error);
+		}
+	}
+	
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	ts->gpio = devm_gpiod_get_index(&client->dev, GSL_PWR_GPIO, 0);
 #else
@@ -506,17 +517,6 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		goto release_gpios;
 	}
 #endif
-	
-	if (ACPI_COMPANION(&client->dev)) {
-		/* Wake the device up with a power on reset */
-		error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D3);
-		if (error == 0) {
-			error = acpi_bus_set_power(ACPI_HANDLE(&client->dev), ACPI_STATE_D0);
-		}
-		if (error) {
-			dev_err(&client->dev, "%s: failed to wake up device through ACPI: %d, continuting anyway\n", __func__, error);
-		}
-	}
 	
 	error = request_firmware(&fw, GSL_FW_NAME, &ts->client->dev);
 	if (error < 0) {
