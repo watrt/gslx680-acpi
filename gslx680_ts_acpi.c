@@ -550,27 +550,6 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 		goto release;
 	}
 
-	/*
-	 * Systems using device tree should set up interrupt via DTS,
-	 * the rest will use the default falling edge interrupts.
-	 */
-	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
-
-	/* Set up interrupt handler - do we still need to account for shared interrupts? */
-	error = devm_request_threaded_irq(
-		&client->dev,
-		client->irq,
-		NULL,
-		gsl_ts_irq,
-		irqflags | IRQF_ONESHOT,
-		client->name,
-		ts
-	);
-	if (error) {
-		dev_err(&client->dev, "%s: failed to register interrupt\n", __func__);
-		goto release;
-	}
-
 	/* Try to use ACPI power methods first */
 	acpipower = false;
 	if (ACPI_COMPANION(&client->dev)) {
@@ -622,6 +601,27 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	error = gsl_ts_startup_chip(client);
 	if (error < 0) {
 		dev_err(&client->dev, "%s: chip startup failed\n", __func__);
+		goto release;
+	}
+
+	/*
+	 * Systems using device tree should set up interrupt via DTS,
+	 * the rest will use the default falling edge interrupts.
+	 */
+	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
+
+	/* Set up interrupt handler - do we still need to account for shared interrupts? */
+	error = devm_request_threaded_irq(
+		&client->dev,
+		client->irq,
+		NULL,
+		gsl_ts_irq,
+		irqflags | IRQF_ONESHOT,
+		client->name,
+		ts
+	);
+	if (error) {
+		dev_err(&client->dev, "%s: failed to register interrupt\n", __func__);
 		goto release;
 	}
 
