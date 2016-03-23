@@ -62,6 +62,8 @@
 	sizeof(struct gsl_ts_packet_header) \
 )
 
+#define GSL_FW_NAME_MAXLEN 32
+#define GSL_FW_NAME_DEFAULT "silead_ts.fw"
 #define GSL_FW_VERSION 1
 #define GSL_FW_ID_LIT(a, b, c, d) ( \
 	((a) & 0xff) | \
@@ -78,9 +80,9 @@
 )
 #define GSL_FW_MODEL_1680 GSL_FW_MODEL_LIT(1680)
 
-/* Module Parameter (optional)*/
-static char *fw_name = "silead_ts.fw";
-module_param(fw_name, charp, 0000);
+/* Module Parameters (optional) */
+static char *gsl_fw_name = NULL;
+module_param_named(fw_name, gsl_fw_name, charp, 0);
 
 /* Driver state */
 enum gsl_ts_state {
@@ -94,6 +96,7 @@ struct gsl_ts_data {
 	struct i2c_client *client;
 	struct input_dev *input;
 	struct gpio_desc *gpio;
+	char fw_name[GSL_FW_NAME_MAXLEN];
 	
 	enum gsl_ts_state state;
 
@@ -523,7 +526,12 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ts->client = client;
 	i2c_set_clientdata(client, ts);
 	
-	error = request_firmware(&fw, fw_name, &ts->client->dev);
+	if (gsl_fw_name != NULL) {
+		strncpy(ts->fw_name, gsl_fw_name, sizeof(ts->fw_name));
+	} else {
+		strncpy(ts->fw_name, GSL_FW_NAME_DEFAULT, sizeof(ts->fw_name));
+	}
+	error = request_firmware(&fw, ts->fw_name, &ts->client->dev);
 	if (error < 0) {
 		dev_err(&client->dev, "%s: failed to load firmware: %d\n", __func__, error);
 		goto release;
@@ -768,6 +776,6 @@ module_i2c_driver(gslx680_ts_driver);
 
 MODULE_DESCRIPTION("GSLX680 touchscreen controller driver");
 MODULE_AUTHOR("Gregor Riepl <onitake@gmail.com>");
-MODULE_PARM_DESC(fw_name, "firmware file name including extention to be loaded");
+MODULE_PARM_DESC(fw_name, "firmware file name (default: " GSL_FW_NAME_DEFAULT ")");
 MODULE_VERSION(DRIVER_VERSION);
 MODULE_LICENSE("GPL");
