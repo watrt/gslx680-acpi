@@ -31,8 +31,8 @@
 #include <linux/version.h>
 
 /* Device and driver information */
-#define DEVICE_NAME	"gslx680"
-#define DRIVER_VERSION	"2.0.0"
+#define DEVICE_NAME "gslx680"
+#define DRIVER_VERSION "0.2.1"
 
 /* Hardware API constants */
 #define GSL_DATA_REG 0x80
