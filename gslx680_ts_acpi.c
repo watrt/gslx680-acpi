@@ -738,10 +738,7 @@ MODULE_DEVICE_TABLE(acpi, gsl_ts_acpi_match);
 #endif
 
 #ifdef CONFIG_OF
-/* This should take care of OpenFirmware and DeviceTree instantiations,
- * but they're completely untested. Volunteers welcome.
- * Is anyone using DeviceTree with this touch screen at all?
- */
+/* These should work, but more testing is needed */
 static const struct of_device_id gsl_ts_of_match[] = {
 	{ .compatible = "silead,gsl1680" },
 	{ .compatible = "silead,gsl3680" },
