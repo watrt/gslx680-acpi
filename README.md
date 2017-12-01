@@ -1,12 +1,12 @@
-# Add touchscreen firmware for ezpad 6 plus
-## Ezpad 6 plus ubuntu 17.04下的触屏驱动
+# Add touchscreen firmware for ezpad 6 plus,Telcast x3 plus
+## Ezpad 6 plus (Telcast x3 plus) ubuntu 17.04下的触屏驱动
 ## Install(安装命令如下):
 ```
 chmod u+ install.sh
 ./install.sh
 ```
-## 如果你只是想安装ezpad 6 plus的触屏驱动，后面的过程可以不用看了
-## All the things below is not for someone  who just want to drive the touchscreen of ezpad 6 plus
+## 如果你只是想安装触屏驱动，后面的过程可以不用看了
+## All the things below is not for someone  who just want to drive the touchscreen
 ================================================================================
 
 About
