@@ -6,9 +6,9 @@ sudo make install
 echo "============================================================"
 echo "+install touchscreen firmware: silead_ts.fw to /lib/firmware"
 echo "============================================================"
-sudo cp silead_ts.fw /lib/firmware/
+sudo cp tsforEzpad6plus/silead_ts.fw /lib/firmware/
 echo "+block the upstream silead driver"
 echo "============================================================"
-sudo cp blacklist.conf /etc/modprobe.d/blacklist.conf
+sudo cp tsforEzpad6plus/blacklist.conf /etc/modprobe.d/blacklist.conf
 echo "good job! restart your system and enjoy it!"
 
