@@ -6,7 +6,7 @@ chmod u+ install.sh
 ./install.sh
 ```
 ## 如果你只是想安装ezpad 6 plus的触屏驱动，后面的过程可以不用看了
-## all the things below is not for someone  who just want drive the ezpad 6 plus
+## All the things below is not for someone  who just want to drive the touchscreen of ezpad 6 plus
 ================================================================================
 
 About
