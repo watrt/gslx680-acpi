@@ -7,9 +7,9 @@ chmod u+ install.sh
 ```
 ## 2:顺便附上无线网卡的驱动：
 https://github.com/huangtao00/rtl8723bu
-## ubuntu的安装教程见如下链接(回头有时间了我再整理一个中文版的)：
+## 3: ubuntu的安装教程见如下链接(回头有时间了我再整理一个中文版的)：
 https://thanhsiang.org/faqing/node/221
-# 3:如果你只是想安装触屏驱动，后面的过程可以不用看了
+# 如果你只是想安装触屏驱动，后面的过程可以不用看了
 ## All the things below is not for someone  who just want to drive the touchscreen
 ================================================================================
 
