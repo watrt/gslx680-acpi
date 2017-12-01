@@ -1,3 +1,15 @@
+
+
+## add touchscreen firmware for ezpad 6 plus
+## ezpad 6 plus ubuntu 17.04下的触屏驱动
+## install(安装命令如下)
+```
+chmod u+ install.sh
+./install.sh
+```
+## 如果你只是想安装ezpad 6 plus的触屏驱动，后面的过程可以不用看了
+## all the things below is not for someone  who just want drive the ezpad 6 plus
+===========================================================================================
 About
 -----
 
