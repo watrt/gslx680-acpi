@@ -1,5 +1,5 @@
 # Add touchscreen firmware for Ezpad 6 plus,Telcast x3 plus
-## Ezpad 6 plus (Telcast x3 plus) ubuntu 17.04下的触屏驱动
+## Ezpad 6 plus ,Telcast x3 plus ubuntu 17.04下的触屏驱动
 ## 1:Install(安装命令如下):
 ```
 chmod u+ install.sh
