@@ -491,7 +491,7 @@ static void gsl_ts_power(struct i2c_client *client, bool turnoff)
 	}
 }
 
-static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
+static int gsl_ts_probe(struct i2c_client *client)
 {
 	struct gsl_ts_data *ts;
 	const struct firmware *fw = NULL;
@@ -663,10 +663,10 @@ release:
 	return 0;
 }
 
-int gsl_ts_remove(struct i2c_client *client) {
+static void gsl_ts_remove(struct i2c_client *client)
+{
 	/* Power the device off */
 	gsl_ts_power(client, true);
-	return 0;
 }
 
 static int gsl_ts_suspend(struct device *dev)
