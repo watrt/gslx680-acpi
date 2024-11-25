@@ -669,7 +669,7 @@ int gsl_ts_remove(struct i2c_client *client) {
 	return 0;
 }
 
-static int __maybe_unused gsl_ts_suspend(struct device *dev)
+static int gsl_ts_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct gsl_ts_data *ts = i2c_get_clientdata(client);
@@ -692,7 +692,7 @@ static int __maybe_unused gsl_ts_suspend(struct device *dev)
 	return 0;
 }
 
-static int __maybe_unused gsl_ts_resume(struct device *dev)
+static int gsl_ts_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct gsl_ts_data *ts = i2c_get_clientdata(client);
@@ -721,50 +721,20 @@ static const struct i2c_device_id gsl_ts_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, gsl_ts_i2c_id);
 
-#ifdef CONFIG_PM
-static SIMPLE_DEV_PM_OPS(gsl_ts_pm_ops, gsl_ts_suspend, gsl_ts_resume);
-#endif
-
-#ifdef CONFIG_ACPI
-/* GSL3680 ACPI IDs are untested */
-static const struct acpi_device_id gsl_ts_acpi_match[] = {
-	{ "MSSL1680", 0 },
-	{ "MSSL3680", 0 },
-	{ "PNP1680", 0 },
-	{ "PNP3680", 0 },
-	{ },
+static const struct dev_pm_ops gsl_ts_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(gsl_ts_suspend, gsl_ts_resume)
 };
-MODULE_DEVICE_TABLE(acpi, gsl_ts_acpi_match);
-#endif
-
-#ifdef CONFIG_OF
-/* These should work, but more testing is needed */
-static const struct of_device_id gsl_ts_of_match[] = {
-	{ .compatible = "silead,gsl1680" },
-	{ .compatible = "silead,gsl3680" },
-	{ .compatible = "silead,gslx680" },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, gsl_ts_of_match);
-#endif
 
 static struct i2c_driver gslx680_ts_driver = {
+	.driver = {
+		.name = DEVICE_NAME,
+		.pm = &gsl_ts_pm_ops,
+		.acpi_match_table = ACPI_PTR(gsl_ts_acpi_match),
+		.of_match_table = of_match_ptr(gsl_ts_of_match),
+	},
 	.probe = gsl_ts_probe,
 	.remove = gsl_ts_remove,
 	.id_table = gsl_ts_i2c_id,
-	.driver = {
-		.name = DEVICE_NAME,
-		.owner = THIS_MODULE,
-#ifdef CONFIG_PM
-		.pm = &gsl_ts_pm_ops,
-#endif
-#ifdef CONFIG_ACPI
-		.acpi_match_table = ACPI_PTR(gsl_ts_acpi_match),
-#endif
-#ifdef CONFIG_OF
-		.of_match_table = of_match_ptr(gsl_ts_of_match),
-#endif
-	},
 };
 module_i2c_driver(gslx680_ts_driver);
 
